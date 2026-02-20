@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "myautoagent"
+name = "sparkagent"
 version = "0.1.0"
 description = "A lightweight LLM-powered personal assistant"
 readme = "README.md"
@@ -45,14 +45,14 @@ dev = [
 ]
 
 [project.scripts]
-myautoagent = "myautoagent.cli.main:app"
+sparkagent = "sparkagent.cli.main:app"
 
 [project.urls]
-Homepage = "https://github.com/Guangyu-Yang/MyAutoAgent"
-Repository = "https://github.com/Guangyu-Yang/MyAutoAgent"
+Homepage = "https://github.com/Guangyu-Yang/sparkagent"
+Repository = "https://github.com/Guangyu-Yang/sparkagent"
 
 [tool.hatch.build.targets.wheel]
-packages = ["myautoagent"]
+packages = ["sparkagent"]
 
 [tool.ruff]
 line-length = 100

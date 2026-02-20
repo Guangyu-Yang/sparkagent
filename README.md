@@ -1,4 +1,4 @@
-# 🤖 MyAutoAgent
+# 🤖 SparkAgent
 
 A lightweight LLM-powered personal assistant built from scratch.
 
@@ -17,8 +17,8 @@ A lightweight LLM-powered personal assistant built from scratch.
 **From source (recommended for development):**
 
 ```bash
-git clone https://github.com/Guangyu-Yang/MyAutoAgent.git
-cd MyAutoAgent
+git clone https://github.com/Guangyu-Yang/sparkagent.git
+cd sparkagent
 pip install -e .
 ```
 
@@ -33,12 +33,12 @@ pip install -e ".[telegram]"
 ### 1. Initialize
 
 ```bash
-myautoagent onboard
+sparkagent onboard
 ```
 
 ### 2. Configure
 
-Edit `~/.myautoagent/config.json`:
+Edit `~/.sparkagent/config.json`:
 
 ```json
 {
@@ -59,10 +59,10 @@ Get an API key at: [openrouter.ai](https://openrouter.ai/keys)
 
 ```bash
 # Single message
-myautoagent chat -m "What is 2+2?"
+sparkagent chat -m "What is 2+2?"
 
 # Interactive mode
-myautoagent chat
+sparkagent chat
 ```
 
 ## 💬 Telegram Bot
@@ -92,23 +92,23 @@ Get your user ID from `@userinfobot` on Telegram.
 ### 3. Run
 
 ```bash
-myautoagent gateway
+sparkagent gateway
 ```
 
 ## 🛠️ CLI Reference
 
 | Command | Description |
 |---------|-------------|
-| `myautoagent onboard` | Initialize config & workspace |
-| `myautoagent chat -m "..."` | Send a message |
-| `myautoagent chat` | Interactive chat |
-| `myautoagent gateway` | Start Telegram gateway |
-| `myautoagent status` | Show status |
+| `sparkagent onboard` | Initialize config & workspace |
+| `sparkagent chat -m "..."` | Send a message |
+| `sparkagent chat` | Interactive chat |
+| `sparkagent gateway` | Start Telegram gateway |
+| `sparkagent status` | Show status |
 
 ## 📁 Project Structure
 
 ```
-myautoagent/
+sparkagent/
 ├── agent/           # 🧠 Core agent logic
 │   ├── loop.py      #    Agent loop (LLM ↔ tools)
 │   ├── context.py   #    Prompt builder
@@ -135,12 +135,12 @@ myautoagent/
 
 ## ⚙️ Configuration
 
-Full config example (`~/.myautoagent/config.json`):
+Full config example (`~/.sparkagent/config.json`):
 
 ```json
 {
   "agent": {
-    "workspace": "~/.myautoagent/workspace",
+    "workspace": "~/.sparkagent/workspace",
     "model": "anthropic/claude-sonnet-4",
     "max_iterations": 20
   },
