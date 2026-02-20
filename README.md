@@ -19,13 +19,13 @@ A lightweight LLM-powered personal assistant built from scratch.
 ```bash
 git clone https://github.com/Guangyu-Yang/sparkagent.git
 cd sparkagent
-pip install -e .
+uv sync
 ```
 
 **With Telegram support:**
 
 ```bash
-pip install -e ".[telegram]"
+uv sync --extra telegram
 ```
 
 ## 🚀 Quick Start
@@ -33,7 +33,7 @@ pip install -e ".[telegram]"
 ### 1. Initialize
 
 ```bash
-sparkagent onboard
+uv run sparkagent onboard
 ```
 
 ### 2. Configure
@@ -59,10 +59,10 @@ Get an API key at: [openrouter.ai](https://openrouter.ai/keys)
 
 ```bash
 # Single message
-sparkagent chat -m "What is 2+2?"
+uv run sparkagent chat -m "What is 2+2?"
 
 # Interactive mode
-sparkagent chat
+uv run sparkagent chat
 ```
 
 ## 💬 Telegram Bot
@@ -92,18 +92,18 @@ Get your user ID from `@userinfobot` on Telegram.
 ### 3. Run
 
 ```bash
-sparkagent gateway
+uv run sparkagent gateway
 ```
 
 ## 🛠️ CLI Reference
 
 | Command | Description |
 |---------|-------------|
-| `sparkagent onboard` | Initialize config & workspace |
-| `sparkagent chat -m "..."` | Send a message |
-| `sparkagent chat` | Interactive chat |
-| `sparkagent gateway` | Start Telegram gateway |
-| `sparkagent status` | Show status |
+| `uv run sparkagent onboard` | Initialize config & workspace |
+| `uv run sparkagent chat -m "..."` | Send a message |
+| `uv run sparkagent chat` | Interactive chat |
+| `uv run sparkagent gateway` | Start Telegram gateway |
+| `uv run sparkagent status` | Show status |
 
 ## 📁 Project Structure
 
