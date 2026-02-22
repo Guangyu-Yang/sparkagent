@@ -1,8 +1,8 @@
 # SparkAgent
 
-A lightweight LLM-powered personal assistant built from scratch.
+An LLM-powered personal assistant framework for building AI agents with tool access.
 
-**~2,500 lines of Python** — minimal dependencies, maximum functionality.
+**Multi-provider** — works with OpenAI, Google Gemini, and Anthropic (including Claude Max/Pro via OAuth).
 
 ## Features
 
