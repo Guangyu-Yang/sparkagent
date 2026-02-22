@@ -34,10 +34,20 @@ class AnthropicProvider(LLMProvider):
     them to the correct SDK parameter.
 
     When configured with ``token_type="oauth"``, the provider will
-    automatically refresh expired access tokens before each API call.
+    automatically refresh expired access tokens before each API call
+    and include the required OAuth headers.
     """
 
     DEFAULT_BASE_URL = "https://api.anthropic.com"
+
+    # Headers required by Anthropic's API when using OAuth tokens.
+    # These match the request shape sent by Claude Code's CLI.
+    _OAUTH_HEADERS: dict[str, str] = {
+        "anthropic-beta": "oauth-2025-04-20,interleaved-thinking-2025-05-14",
+        "user-agent": "claude-cli/2.1.7 (external, cli)",
+        "x-app": "cli",
+    }
+    _OAUTH_QUERY: dict[str, str] = {"beta": "true"}
 
     def __init__(
         self,
@@ -63,12 +73,30 @@ class AnthropicProvider(LLMProvider):
         self._on_token_refresh = on_token_refresh
 
         resolved_api_key, resolved_auth_token = _classify_anthropic_credential(api_key)
-        self.client = anthropic.AsyncAnthropic(
-            api_key=resolved_api_key,
-            auth_token=resolved_auth_token,
-            base_url=self._base_url,
-            timeout=timeout,
-        )
+        self.client = self._build_client(resolved_api_key, resolved_auth_token)
+
+    def _build_client(
+        self,
+        api_key: str | None,
+        auth_token: str | None,
+    ) -> anthropic.AsyncAnthropic:
+        """Create an ``AsyncAnthropic`` client.
+
+        When using OAuth (``_token_type == "oauth"``), the client is
+        configured with extra headers and query parameters required by
+        Anthropic's API for OAuth-based authentication.
+        """
+        kwargs: dict[str, Any] = {
+            "api_key": api_key,
+            "auth_token": auth_token,
+            "base_url": self._base_url,
+            "timeout": self._timeout,
+        }
+        if self._token_type == "oauth":
+            kwargs["default_headers"] = self._OAUTH_HEADERS
+            kwargs["default_query"] = self._OAUTH_QUERY
+
+        return anthropic.AsyncAnthropic(**kwargs)
 
     async def _ensure_valid_token(self) -> None:
         """Refresh the OAuth token if it has expired.
@@ -107,12 +135,7 @@ class AnthropicProvider(LLMProvider):
 
         # Recreate the SDK client with the new token
         _, resolved_auth_token = _classify_anthropic_credential(tokens.access_token)
-        self.client = anthropic.AsyncAnthropic(
-            api_key=None,
-            auth_token=resolved_auth_token,
-            base_url=self._base_url,
-            timeout=self._timeout,
-        )
+        self.client = self._build_client(None, resolved_auth_token)
 
         # Notify caller to persist the new tokens
         if self._on_token_refresh:

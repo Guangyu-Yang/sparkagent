@@ -143,6 +143,29 @@ class TestAnthropicProviderInit:
                 timeout=120.0,
             )
 
+    def test_oauth_type_adds_headers_and_query(self, mock_client: AsyncMock):
+        """OAuth token_type adds required headers and query params."""
+        with patch.object(
+            _fake_anthropic, "AsyncAnthropic", return_value=mock_client
+        ) as mock_cls:
+            AnthropicProvider(
+                api_key="sk-ant-oat01-test",
+                token_type="oauth",
+            )
+            call_kwargs = mock_cls.call_args[1]
+            assert call_kwargs["default_headers"] == AnthropicProvider._OAUTH_HEADERS
+            assert call_kwargs["default_query"] == AnthropicProvider._OAUTH_QUERY
+
+    def test_api_key_no_extra_headers(self, mock_client: AsyncMock):
+        """Standard API key auth should NOT include OAuth headers."""
+        with patch.object(
+            _fake_anthropic, "AsyncAnthropic", return_value=mock_client
+        ) as mock_cls:
+            AnthropicProvider(api_key="sk-ant-api03-test")
+            call_kwargs = mock_cls.call_args[1]
+            assert "default_headers" not in call_kwargs
+            assert "default_query" not in call_kwargs
+
 
 # ---------------------------------------------------------------------------
 # Tests: _convert_tool
@@ -739,6 +762,47 @@ class TestEnsureValidToken:
 
         with pytest.raises(OAuthError, match="no refresh token"):
             await p._ensure_valid_token()
+
+    async def test_refresh_recreates_client_with_oauth_headers(
+        self, mock_client: AsyncMock
+    ):
+        """Refreshed client should also get OAuth headers/query params."""
+        from datetime import datetime, timedelta, timezone
+
+        from sparkagent.auth.oauth import OAuthTokens
+
+        past = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+
+        with patch.object(_fake_anthropic, "AsyncAnthropic", return_value=mock_client):
+            p = AnthropicProvider(
+                api_key="sk-ant-oat01-old",
+                token_type="oauth",
+                expires_at=past,
+                refresh_token="refresh-tok",
+            )
+        p.client = mock_client
+
+        new_tokens = OAuthTokens(
+            access_token="sk-ant-oat01-new",
+            refresh_token="new-refresh",
+            expires_in=28800,
+        )
+
+        with (
+            patch(
+                "sparkagent.auth.oauth.refresh_access_token",
+                return_value=new_tokens,
+            ),
+            patch.object(
+                _fake_anthropic, "AsyncAnthropic", return_value=mock_client
+            ) as mock_cls,
+        ):
+            await p._ensure_valid_token()
+
+        # The recreated client should include OAuth headers and query
+        call_kwargs = mock_cls.call_args[1]
+        assert call_kwargs["default_headers"] == AnthropicProvider._OAUTH_HEADERS
+        assert call_kwargs["default_query"] == AnthropicProvider._OAUTH_QUERY
 
     async def test_chat_calls_ensure_valid_token(
         self, provider: AnthropicProvider, mock_client: AsyncMock
