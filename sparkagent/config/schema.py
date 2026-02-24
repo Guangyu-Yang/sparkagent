@@ -45,6 +45,18 @@ class AgentConfig(BaseModel):
     provider: str = ""
     model: str = ""
     max_iterations: int = 20
+    execution_mode: str = "function_calling"  # "function_calling" | "code_act" | "auto"
+
+
+class MemoryConfig(BaseModel):
+    """Memory skill system configuration."""
+
+    enabled: bool = False
+    top_k_skills: int = 3
+    max_memories_in_context: int = 10
+    max_memory_chars: int = 2000
+    hard_case_threshold: int = 10
+    auto_evolve: bool = True
 
 
 class WebSearchConfig(BaseModel):
@@ -66,6 +78,7 @@ class Config(BaseModel):
     providers: ProvidersConfig = Field(default_factory=ProvidersConfig)
     channels: ChannelsConfig = Field(default_factory=ChannelsConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
+    memory: MemoryConfig = Field(default_factory=MemoryConfig)
 
     @property
     def workspace_path(self) -> Path:

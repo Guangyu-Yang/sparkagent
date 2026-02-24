@@ -8,12 +8,14 @@ import typer
 from rich.console import Console
 
 from sparkagent import __version__
+from sparkagent.cli.telegram import telegram_app
 
 app = typer.Typer(
     name="sparkagent",
     help="SparkAgent - A lightweight LLM-powered assistant",
     no_args_is_help=True,
 )
+app.add_typer(telegram_app, name="telegram")
 
 console = Console()
 
@@ -389,6 +391,8 @@ def chat(
         model=config.agent.model,
         max_iterations=config.agent.max_iterations,
         brave_api_key=config.tools.web_search.api_key or None,
+        execution_mode=config.agent.execution_mode,
+        memory_config=config.memory,
     )
 
     if message:
@@ -450,6 +454,8 @@ def gateway():
         workspace=config.workspace_path,
         model=config.agent.model,
         brave_api_key=config.tools.web_search.api_key or None,
+        execution_mode=config.agent.execution_mode,
+        memory_config=config.memory,
     )
 
     # Setup Telegram if enabled
