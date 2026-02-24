@@ -12,6 +12,7 @@ An LLM-powered personal assistant framework for building AI agents with tool acc
 - **Built-in Tools** — File operations, shell, web search/fetch
 - **Chat Channels** — Telegram integration (more coming)
 - **Session Memory** — Persistent conversation history
+- **Dynamic Memory** — Learnable memory skills that extract, consolidate, and prune knowledge across conversations
 - **Workspace Files** — Customizable agent personality (AGENTS.md, SOUL.md)
 
 ## Supported Models
@@ -156,21 +157,32 @@ uv run sparkagent status
 
 ### 2. Configure
 
-Add the Telegram section to `~/.sparkagent/config.json`:
+The setup wizard walks you through token and access configuration:
 
-```json
-{
-  "channels": {
-    "telegram": {
-      "enabled": true,
-      "token": "YOUR_BOT_TOKEN",
-      "allow_from": ["YOUR_USER_ID"]
-    }
-  }
-}
+```bash
+uv run sparkagent telegram onboard
 ```
 
-Get your user ID from `@userinfobot` on Telegram.
+```
+Telegram Bot Setup
+
+  1. Open Telegram and search for @BotFather
+  2. Send /newbot and follow the prompts to create a bot
+  3. Copy the bot token (looks like 123456:ABC-xyz...)
+
+Bot token: ****
+  > Token saved
+
+Restrict access (recommended):
+
+  To find your user ID, send /start to @userinfobot on Telegram.
+
+Your user ID (leave blank to allow everyone): 123456789
+  > Access restricted to: 123456789
+
+Telegram bot configured!
+Run `sparkagent gateway` to start.
+```
 
 ### 3. Run
 
@@ -184,10 +196,60 @@ uv run sparkagent gateway
 |---------|-------------|
 | `uv run sparkagent onboard` | Interactive setup wizard |
 | `uv run sparkagent login` | OAuth login for Claude Max/Pro |
+| `uv run sparkagent telegram onboard` | Interactive Telegram bot setup |
 | `uv run sparkagent chat -m "..."` | Send a message |
 | `uv run sparkagent chat` | Interactive chat |
 | `uv run sparkagent gateway` | Start Telegram gateway |
 | `uv run sparkagent status` | Show status and auth info |
+
+## Dynamic Memory
+
+SparkAgent includes an opt-in dynamic memory system. Instead of relying on a static memory file, the agent uses **learnable memory skills** — structured routines that decide what to remember, update, or forget after each conversation turn.
+
+### How it works
+
+1. **Selector** — After each turn, an LLM call picks the most relevant memory skills to apply.
+2. **Executor** — A second LLM call generates concrete memory operations (insert, update, delete, noop) guided by the selected skills.
+3. **Designer** — When enough failures accumulate, a third LLM call analyzes them and evolves the skill bank — proposing new skills or refining existing ones.
+
+Memory skills are stored as markdown files in `~/.sparkagent/memory/skills/`, and memory entries are persisted as JSONL in `~/.sparkagent/memory/entries.jsonl`.
+
+### Enable it
+
+Add to your `~/.sparkagent/config.json`:
+
+```json
+{
+  "memory": {
+    "enabled": true
+  }
+}
+```
+
+### Configuration options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `enabled` | `false` | Enable/disable the memory system |
+| `top_k_skills` | `3` | Number of skills selected per turn |
+| `max_memories_in_context` | `10` | Max memories injected into the system prompt |
+| `max_memory_chars` | `2000` | Max characters for the memory context section |
+| `hard_case_threshold` | `10` | Number of failures before triggering skill evolution |
+| `auto_evolve` | `true` | Automatically evolve skills when threshold is reached |
+
+### Storage layout
+
+```
+~/.sparkagent/memory/
+├── entries.jsonl        # Memory entries
+├── hard_cases.jsonl     # Hard case buffer for the designer
+└── skills/              # Memory skills as markdown files
+    ├── primitive_insert.md
+    ├── primitive_update.md
+    ├── primitive_delete.md
+    ├── primitive_noop.md
+    └── *.md             # Evolved skills (created by the designer)
+```
 
 ## Project Structure
 
@@ -197,6 +259,14 @@ sparkagent/
 │   ├── loop.py      #   Agent loop (LLM ↔ tools)
 │   ├── context.py   #   Prompt builder
 │   └── tools/       #   Built-in tools
+├── memory/          # Dynamic memory system
+│   ├── models.py    #   Data models
+│   ├── store.py     #   JSONL persistence & retrieval
+│   ├── skill_bank.py#   Markdown skill file management
+│   ├── prompts.py   #   LLM prompt templates
+│   ├── selector.py  #   Skill selection (Controller)
+│   ├── executor.py  #   Operation generation (Executor)
+│   └── designer.py  #   Skill evolution (Designer)
 ├── auth/            # OAuth authentication (PKCE, token refresh)
 ├── providers/       # LLM providers (OpenAI, Gemini, Anthropic)
 ├── session/         # Conversation history
@@ -258,6 +328,9 @@ The config file lives at `~/.sparkagent/config.json`. Here's a full example for 
     "web_search": {
       "api_key": "BSA-xxx"
     }
+  },
+  "memory": {
+    "enabled": false
   }
 }
 ```
