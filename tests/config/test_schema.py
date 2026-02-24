@@ -8,6 +8,7 @@ from sparkagent.config.schema import (
     AgentConfig,
     ChannelsConfig,
     Config,
+    MemoryConfig,
     ProviderConfig,
     ProvidersConfig,
     TelegramConfig,
@@ -86,6 +87,19 @@ class TestProvidersConfig:
         assert config.anthropic.api_key == ""
 
 
+class TestMemoryConfig:
+    """Tests for MemoryConfig."""
+
+    def test_default_values(self):
+        mc = MemoryConfig()
+        assert mc.enabled is False
+        assert mc.top_k_skills == 3
+        assert mc.max_memories_in_context == 10
+        assert mc.max_memory_chars == 2000
+        assert mc.hard_case_threshold == 10
+        assert mc.auto_evolve is True
+
+
 class TestAgentConfig:
     """Tests for AgentConfig."""
 
@@ -95,6 +109,10 @@ class TestAgentConfig:
         assert config.provider == ""
         assert config.model == ""
         assert config.max_iterations == 20
+
+    def test_execution_mode_default(self):
+        config = AgentConfig()
+        assert config.execution_mode == "function_calling"
 
     def test_custom_values(self):
         config = AgentConfig(
