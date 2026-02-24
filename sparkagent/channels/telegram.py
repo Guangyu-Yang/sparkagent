@@ -1,5 +1,7 @@
 """Telegram channel implementation."""
 
+from __future__ import annotations
+
 import asyncio
 import re
 from pathlib import Path
