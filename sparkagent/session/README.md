@@ -1,4 +1,4 @@
-# session — Conversation Persistence
+# Session — Conversation Persistence
 
 JSONL-based storage for conversation history, with in-memory caching.
 

@@ -10,3 +10,4 @@
 3. **Cross-reference, don't duplicate.** When content exists in a subfolder README, the main README should summarize in 1-2 sentences and link there.
 4. **Back-links in subfolder READMEs.** Each subfolder README that is linked from the main README should have a blockquote back-link to the relevant main README section.
 5. **Keep the main README scannable.** Prefer short summaries with links over detailed tables, config blocks, or directory trees.
+6. **Capitalize subfolder README titles.** Use `# Memory — ...` not `# memory — ...`. For acronyms use all-caps (`CLI`), for compound names use PascalCase (`CodeAct`).

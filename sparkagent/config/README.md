@@ -1,4 +1,4 @@
-# config — Configuration Schema and Loading
+# Config — Configuration Schema and Loading
 
 Pydantic v2 models for the entire application configuration, loaded from `~/.sparkagent/config.json`.
 

@@ -1,4 +1,4 @@
-# channels — I/O Channel Integrations
+# Channels — I/O Channel Integrations
 
 Abstract channel interface and concrete implementations for receiving/sending messages.
 

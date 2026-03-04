@@ -1,4 +1,4 @@
-# bus — Async Message Bus
+# Bus — Async Message Bus
 
 Queue-based pub/sub system for routing messages between channels and the agent loop.
 

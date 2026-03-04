@@ -1,4 +1,4 @@
-# cli — Command-Line Interface
+# CLI — Command-Line Interface
 
 Typer-based CLI with commands for onboarding, chatting, and starting the gateway.
 
