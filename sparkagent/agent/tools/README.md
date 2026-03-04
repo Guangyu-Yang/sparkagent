@@ -2,6 +2,8 @@
 
 Abstract base class, registry, and built-in tool implementations for file, shell, and web operations.
 
+> For a quick overview, see [Built-in Tools](../../../README.md#built-in-tools) in the main README.
+
 ## Files
 
 | File | Purpose |

@@ -2,6 +2,8 @@
 
 Pydantic v2 models for the entire application configuration, loaded from `~/.sparkagent/config.json`.
 
+> Configuration is managed via CLI commands. See [Configuration](../../README.md#configuration) in the main README.
+
 ## Files
 
 | File | Purpose |
