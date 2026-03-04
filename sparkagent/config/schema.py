@@ -73,10 +73,17 @@ class WebSearchConfig(BaseModel):
     api_key: str = ""  # Brave Search API key
 
 
+class TavilyConfig(BaseModel):
+    """Tavily search and extract configuration."""
+
+    api_key: str = ""
+
+
 class ToolsConfig(BaseModel):
     """Tools configuration."""
 
     web_search: WebSearchConfig = Field(default_factory=WebSearchConfig)
+    tavily: TavilyConfig = Field(default_factory=TavilyConfig)
 
 
 class Config(BaseModel):

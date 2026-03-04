@@ -236,11 +236,45 @@ def onboard():
         provider_config.api_key = api_key.strip()
         console.print("  [green]>[/green] Credential saved\n")
 
-    # --- Step 4: Save config ---
+    # --- Step 4: Web search provider ---
+    console.print("[bold]Step 4:[/bold] Choose a web search provider\n")
+    console.print("  [cyan]1[/cyan]. None")
+    console.print("  [cyan]2[/cyan]. Brave Search")
+    console.print("  [cyan]3[/cyan]. Tavily")
+    console.print()
+
+    web_choice = typer.prompt("Select web search provider", type=int, default=1)
+
+    if web_choice == 2:
+        console.print(
+            "\n  Get a key at: "
+            "[link=https://brave.com/search/api/]https://brave.com/search/api/[/link]\n"
+        )
+        brave_key = typer.prompt("Brave Search API key", hide_input=True)
+        if brave_key.strip():
+            config.tools.web_search.api_key = brave_key.strip()
+            console.print("  [green]>[/green] Brave Search configured\n")
+        else:
+            console.print("  [yellow]Skipped (empty key)[/yellow]\n")
+    elif web_choice == 3:
+        console.print(
+            "\n  Get a key at: "
+            "[link=https://tavily.com/]https://tavily.com/[/link]\n"
+        )
+        tavily_key = typer.prompt("Tavily API key", hide_input=True)
+        if tavily_key.strip():
+            config.tools.tavily.api_key = tavily_key.strip()
+            console.print("  [green]>[/green] Tavily configured\n")
+        else:
+            console.print("  [yellow]Skipped (empty key)[/yellow]\n")
+    else:
+        console.print("  [green]>[/green] No web search provider\n")
+
+    # --- Step 5: Save config ---
     save_config(config)
     console.print(f"[green]>[/green] Config saved to {config_path}")
 
-    # --- Step 5: Create workspace + templates ---
+    # --- Step 6: Create workspace + templates ---
     workspace = config.workspace_path
     workspace.mkdir(parents=True, exist_ok=True)
     _create_templates(workspace)
@@ -399,6 +433,7 @@ def chat(
         model=config.agent.model,
         max_iterations=config.agent.max_iterations,
         brave_api_key=config.tools.web_search.api_key or None,
+        tavily_api_key=config.tools.tavily.api_key or None,
         execution_mode=config.agent.execution_mode,
         memory_config=config.memory,
     )
@@ -462,6 +497,7 @@ def gateway():
         workspace=config.workspace_path,
         model=config.agent.model,
         brave_api_key=config.tools.web_search.api_key or None,
+        tavily_api_key=config.tools.tavily.api_key or None,
         execution_mode=config.agent.execution_mode,
         memory_config=config.memory,
     )

@@ -1,15 +1,16 @@
 """Agent tools package."""
 
 from sparkagent.agent.tools.base import Tool
-from sparkagent.agent.tools.registry import ToolRegistry
 from sparkagent.agent.tools.filesystem import (
+    EditFileTool,
+    ListDirectoryTool,
     ReadFileTool,
     WriteFileTool,
-    ListDirectoryTool,
-    EditFileTool,
 )
+from sparkagent.agent.tools.registry import ToolRegistry
 from sparkagent.agent.tools.shell import ShellTool
-from sparkagent.agent.tools.web import WebSearchTool, WebFetchTool
+from sparkagent.agent.tools.tavily import TavilyFetchTool, TavilySearchTool
+from sparkagent.agent.tools.web import WebFetchTool, WebSearchTool
 
 __all__ = [
     "Tool",
@@ -21,4 +22,6 @@ __all__ = [
     "ShellTool",
     "WebSearchTool",
     "WebFetchTool",
+    "TavilySearchTool",
+    "TavilyFetchTool",
 ]

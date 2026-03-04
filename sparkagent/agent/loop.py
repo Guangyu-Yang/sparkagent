@@ -13,6 +13,8 @@ from sparkagent.agent.tools import (
     ListDirectoryTool,
     ReadFileTool,
     ShellTool,
+    TavilyFetchTool,
+    TavilySearchTool,
     ToolRegistry,
     WebFetchTool,
     WebSearchTool,
@@ -50,6 +52,7 @@ class AgentLoop:
         model: str | None = None,
         max_iterations: int = 20,
         brave_api_key: str | None = None,
+        tavily_api_key: str | None = None,
         execution_mode: str = "function_calling",
         memory_config: MemoryConfig | None = None,
     ):
@@ -81,9 +84,13 @@ class AgentLoop:
         self._running = False
         self._codeact_parser = CodeActParser()
         self._codeact_executors: dict[str, CodeActExecutor] = {}
-        self._register_tools(brave_api_key)
+        self._register_tools(brave_api_key, tavily_api_key)
 
-    def _register_tools(self, brave_api_key: str | None = None) -> None:
+    def _register_tools(
+        self,
+        brave_api_key: str | None = None,
+        tavily_api_key: str | None = None,
+    ) -> None:
         """Register the default tools."""
         # File tools
         self.tools.register(ReadFileTool())
@@ -97,6 +104,11 @@ class AgentLoop:
         # Web tools
         self.tools.register(WebSearchTool(api_key=brave_api_key))
         self.tools.register(WebFetchTool())
+
+        # Tavily tools (registered only when API key is provided)
+        if tavily_api_key:
+            self.tools.register(TavilySearchTool(api_key=tavily_api_key))
+            self.tools.register(TavilyFetchTool(api_key=tavily_api_key))
 
     async def run(self) -> None:
         """Run the agent loop, processing messages from the bus."""
