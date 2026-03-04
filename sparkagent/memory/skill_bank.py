@@ -1,9 +1,12 @@
 """Skill bank — manages memory skills as individual markdown files."""
 
+import logging
 from datetime import datetime
 from pathlib import Path
 
 from sparkagent.memory.models import MemorySkill
+
+logger = logging.getLogger(__name__)
 
 # Primitive skill definitions (written to disk on first init)
 _PRIMITIVES: dict[str, dict] = {
@@ -234,6 +237,7 @@ class SkillBank:
 
         self._write_skill_file(skill)
         self._skills[skill.id] = skill
+        logger.info("Added skill %s", skill.id)
 
     def remove_skill(self, skill_id: str) -> bool:
         """Remove a skill (delete its .md file). Cannot remove primitives."""
@@ -248,6 +252,7 @@ class SkillBank:
         if path.exists():
             path.unlink()
         del self._skills[skill_id]
+        logger.info("Removed skill %s", skill_id)
         return True
 
     def record_usage(self, skill_id: str, success: bool = True) -> None:
@@ -263,6 +268,7 @@ class SkillBank:
         if success:
             skill.success_count += 1
         self._write_skill_file(skill)
+        logger.debug("Recorded usage for skill %s (success=%s)", skill_id, success)
 
     def rollback_skill(self, skill_id: str) -> bool:
         """Remove an evolved skill if its success rate is below threshold.
@@ -279,6 +285,11 @@ class SkillBank:
         if skill.usage_count >= 5:
             success_rate = skill.success_count / skill.usage_count
             if success_rate < 0.3:
+                logger.warning(
+                    "Rolling back skill %s (success_rate=%.1f%%)",
+                    skill_id,
+                    success_rate * 100,
+                )
                 return self.remove_skill(skill_id)
 
         return False

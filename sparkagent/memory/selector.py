@@ -3,10 +3,13 @@
 Follows the mode_selector.py pattern: module-level prompt + single async function.
 """
 
+import logging
 import re
 
 from sparkagent.memory.prompts import SKILL_SELECTION_PROMPT
 from sparkagent.providers.base import LLMProvider
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_FALLBACK = ["primitive_insert", "primitive_noop"]
 
@@ -53,7 +56,9 @@ async def select_skills(
     )
 
     text = response.content or ""
-    return _parse_skill_ids(text, top_k)
+    selected = _parse_skill_ids(text, top_k)
+    logger.info("Selected skills: %s", selected)
+    return selected
 
 
 def _parse_skill_ids(text: str, top_k: int) -> list[str]:

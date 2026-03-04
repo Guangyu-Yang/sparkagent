@@ -1,11 +1,14 @@
 """LLM-based memory operation generation (Executor)."""
 
 import json
+import logging
 import re
 
 from sparkagent.memory.models import MemoryEntry, MemoryOperation, MemorySkill, OperationType
 from sparkagent.memory.prompts import EXECUTOR_PROMPT
 from sparkagent.providers.base import LLMProvider
+
+logger = logging.getLogger(__name__)
 
 
 async def execute_memory_skills(
@@ -53,7 +56,13 @@ async def execute_memory_skills(
     )
 
     text = response.content or ""
-    return _parse_operations(text, relevant_memories, selected_skills)
+    operations = _parse_operations(text, relevant_memories, selected_skills)
+    logger.info(
+        "Executed %d skill(s), produced %d operation(s)",
+        len(selected_skills),
+        len(operations),
+    )
+    return operations
 
 
 def _format_indexed_memories(memories: list[MemoryEntry]) -> str:
@@ -90,6 +99,7 @@ def _parse_operations(
     try:
         raw_ops = json.loads(json_str)
     except json.JSONDecodeError:
+        logger.warning("Failed to parse executor JSON response")
         return []
 
     if not isinstance(raw_ops, list):

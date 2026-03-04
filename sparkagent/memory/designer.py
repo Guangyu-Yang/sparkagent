@@ -5,6 +5,7 @@ skill refinements or new skills.
 """
 
 import json
+import logging
 import re
 from datetime import datetime
 from pathlib import Path
@@ -13,6 +14,8 @@ from sparkagent.memory.models import HardCase, MemoryOperation, MemorySkill
 from sparkagent.memory.prompts import DESIGNER_PROMPT
 from sparkagent.memory.skill_bank import SkillBank
 from sparkagent.providers.base import LLMProvider
+
+logger = logging.getLogger(__name__)
 
 
 class SkillDesigner:
@@ -51,9 +54,12 @@ class SkillDesigner:
                         case = self._dict_to_hard_case(data)
                         self._hard_cases.append(case)
                     except (json.JSONDecodeError, KeyError):
+                        logger.warning(
+                            "Skipping malformed hard case in %s", self._hard_cases_path
+                        )
                         continue
         except OSError:
-            pass
+            logger.warning("Failed to read hard cases from %s", self._hard_cases_path)
 
         return self._hard_cases
 
@@ -118,6 +124,7 @@ class SkillDesigner:
         cases = self._ensure_loaded()
         cases.append(case)
         self._save_hard_cases()
+        logger.info("Recorded hard case %s (failure_type=%s)", case.id, case.failure_type)
 
     def should_evolve(self) -> bool:
         """Check whether enough hard cases have accumulated to trigger evolution."""
@@ -160,6 +167,8 @@ class SkillDesigner:
         text = response.content or ""
         proposals = self._parse_proposals(text)
 
+        logger.info("Evolving skills: %d proposal(s) from %d hard case(s)", len(proposals), len(cases))
+
         new_skills: list[MemorySkill] = []
         for proposal in proposals:
             action = proposal.get("action", "")
@@ -190,6 +199,9 @@ class SkillDesigner:
         self._hard_cases = []
         self._save_hard_cases()
 
+        if new_skills:
+            logger.info("Evolved skills: %s", [s.id for s in new_skills])
+
         return new_skills
 
     def check_rollbacks(self) -> list[str]:
@@ -203,6 +215,8 @@ class SkillDesigner:
                 continue
             if self.skill_bank.rollback_skill(skill.id):
                 rolled_back.append(skill.id)
+        if rolled_back:
+            logger.info("Rolled back skills: %s", rolled_back)
         return rolled_back
 
     @staticmethod

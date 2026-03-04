@@ -1,11 +1,14 @@
 """Memory store — JSONL persistence and keyword-based retrieval."""
 
 import json
+import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
 
 from sparkagent.memory.models import MemoryEntry
+
+logger = logging.getLogger(__name__)
 
 
 class MemoryStore:
@@ -41,9 +44,10 @@ class MemoryStore:
                         entry = self._dict_to_entry(data)
                         self._cache[entry.id] = entry
                     except (json.JSONDecodeError, KeyError):
+                        logger.warning("Skipping malformed entry in %s", self._entries_path)
                         continue
         except OSError:
-            pass
+            logger.warning("Failed to read memory entries from %s", self._entries_path)
 
         return self._cache
 
@@ -101,6 +105,7 @@ class MemoryStore:
         )
         entries[entry.id] = entry
         self._save()
+        logger.info("Inserted memory %s: %.60s (tags=%s)", entry.id, content, tags or [])
         return entry
 
     def update(self, entry_id: str, content: str | None = None, tags: list[str] | None = None):
@@ -116,6 +121,7 @@ class MemoryStore:
             entry.tags = tags
         entry.updated_at = datetime.now()
         self._save()
+        logger.info("Updated memory %s", entry_id)
         return entry
 
     def delete(self, entry_id: str) -> bool:
@@ -125,6 +131,7 @@ class MemoryStore:
             return False
         del entries[entry_id]
         self._save()
+        logger.info("Deleted memory %s", entry_id)
         return True
 
     def get(self, entry_id: str) -> MemoryEntry | None:
@@ -174,6 +181,7 @@ class MemoryStore:
         scored.sort(key=lambda x: x[0], reverse=True)
 
         results = [entry for _, entry in scored[:max_results]]
+        logger.debug("Retrieved %d memories for query: %.60s", len(results), query)
         # Update access counts
         for entry in results:
             entry.access_count += 1
