@@ -15,13 +15,15 @@ An LLM-powered personal assistant framework for building AI agents with tool acc
 - **Dynamic Memory** — Learnable memory skills that extract, consolidate, and prune knowledge across conversations
 - **Workspace Files** — Customizable agent personality (AGENTS.md, SOUL.md)
 
-## Supported Models
+## Supported Providers
 
-| Provider | Models |
-|----------|--------|
-| **OpenAI** | GPT-4.1, GPT-4.1 Mini, GPT-4.1 Nano, o3, o4-mini |
-| **Google Gemini** | Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.5 Flash Lite |
-| **Anthropic** | Claude Opus 4.6, Claude Sonnet 4.6, Claude Haiku 4.5 |
+SparkAgent works with any model available through these provider SDKs:
+
+- **OpenAI** — via the OpenAI Python SDK
+- **Google Gemini** — via the Google GenAI SDK
+- **Anthropic** — via the Anthropic Python SDK (API key or OAuth with Claude Max/Pro)
+
+The onboarding wizard (`sparkagent onboard`) suggests popular models for each provider, but you can use any model by setting the `model` field in `~/.sparkagent/config.json`.
 
 ## Installation
 
