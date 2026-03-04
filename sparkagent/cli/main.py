@@ -28,9 +28,7 @@ def version_callback(value: bool):
 
 @app.callback()
 def main(
-    version: bool = typer.Option(
-        None, "--version", "-v", callback=version_callback, is_eager=True
-    ),
+    version: bool = typer.Option(None, "--version", "-v", callback=version_callback, is_eager=True),
 ):
     """SparkAgent - Personal AI Assistant."""
     pass
@@ -79,9 +77,7 @@ def create_provider(config):
 
         return GeminiProvider(api_key=api_key, api_base=api_base, default_model=model)
     else:
-        return OpenAICompatibleProvider(
-            api_key=api_key, api_base=api_base, default_model=model
-        )
+        return OpenAICompatibleProvider(api_key=api_key, api_base=api_base, default_model=model)
 
 
 # ============================================================================
@@ -210,8 +206,7 @@ def onboard():
             _run_oauth_flow(config)
         else:
             console.print(
-                f"\n  Get one at: "
-                f"[link={provider.key_url_hint}]{provider.key_url_hint}[/link]\n"
+                f"\n  Get one at: [link={provider.key_url_hint}]{provider.key_url_hint}[/link]\n"
             )
             api_key = typer.prompt("API key / token", hide_input=True)
             if not api_key.strip():
@@ -228,8 +223,7 @@ def onboard():
     else:
         console.print("[bold]Step 3:[/bold] Enter your API key or token\n")
         console.print(
-            f"  Get one at: "
-            f"[link={provider.key_url_hint}]{provider.key_url_hint}[/link]\n"
+            f"  Get one at: [link={provider.key_url_hint}]{provider.key_url_hint}[/link]\n"
         )
 
         api_key = typer.prompt("API key / token", hide_input=True)
@@ -254,7 +248,7 @@ def onboard():
     console.print("\n[bold green]Setup complete![/bold green]")
     console.print(f"\nProvider: [cyan]{provider.label}[/cyan]")
     console.print(f"Model:    [cyan]{model.id}[/cyan]")
-    console.print("\nTry it out: [cyan]sparkagent chat -m \"Hello!\"[/cyan]")
+    console.print('\nTry it out: [cyan]sparkagent chat -m "Hello!"[/cyan]')
 
 
 def _create_templates(workspace: Path):
@@ -285,6 +279,21 @@ Information about the user.
 ## Preferences
 - Communication style: casual
 - Timezone: (your timezone)
+""",
+        "HEARTBEAT.md": """# Heartbeat — Scheduled Tasks
+
+Define tasks for the heartbeat agent to evaluate periodically.
+Each task should specify a cadence and what to do.
+
+## Examples (uncomment to enable)
+
+<!-- ### Daily summary
+- Cadence: once per day, morning
+- Task: Summarize unread notifications and create a brief report -->
+
+<!-- ### Weekly review
+- Cadence: every Monday
+- Task: Review the week's activity and draft a summary -->
 """,
     }
 
@@ -320,8 +329,7 @@ def login():
         current = get_provider(config.agent.provider)
         label = current.label if current else config.agent.provider
         console.print(
-            f"[yellow]Current provider is {label}. "
-            f"This will switch to Anthropic.[/yellow]\n"
+            f"[yellow]Current provider is {label}. This will switch to Anthropic.[/yellow]\n"
         )
 
     # Run the OAuth flow
@@ -355,7 +363,7 @@ def login():
     console.print("\nProvider: [cyan]Anthropic[/cyan]")
     console.print(f"Model:    [cyan]{config.agent.model}[/cyan]")
     console.print("Auth:     [cyan]OAuth (Claude Max/Pro)[/cyan]")
-    console.print("\nTry it out: [cyan]sparkagent chat -m \"Hello!\"[/cyan]")
+    console.print('\nTry it out: [cyan]sparkagent chat -m "Hello!"[/cyan]')
 
 
 # ============================================================================
@@ -431,7 +439,7 @@ def chat(
 def gateway():
     """Start the gateway (for Telegram/WhatsApp)."""
     from sparkagent.agent import AgentLoop
-    from sparkagent.bus import MessageBus
+    from sparkagent.bus import MessageBus, OutboundMessage
     from sparkagent.channels import TelegramChannel
     from sparkagent.config import load_config
 
@@ -467,10 +475,41 @@ def gateway():
     else:
         console.print("[yellow]Warning: No channels enabled[/yellow]")
 
+    # Setup heartbeat if enabled
+    heartbeat = None
+    if config.heartbeat.enabled:
+        from sparkagent.heartbeat import HeartbeatService
+
+        async def _heartbeat_execute(task: str) -> str:
+            return await agent.process_direct(task, session_key="heartbeat:auto")
+
+        async def _heartbeat_notify(result: str) -> None:
+            chat_id = config.heartbeat.notify_chat_id
+            if chat_id:
+                await bus.publish_outbound(
+                    OutboundMessage(
+                        channel="telegram",
+                        chat_id=chat_id,
+                        content=result,
+                    )
+                )
+
+        heartbeat = HeartbeatService(
+            provider=provider,
+            model=config.agent.model,
+            workspace=config.workspace_path,
+            interval_minutes=config.heartbeat.interval_minutes,
+            on_execute=_heartbeat_execute,
+            on_notify=_heartbeat_notify,
+        )
+        console.print("[green]>[/green] Heartbeat enabled")
+
     async def run():
         tasks = [agent.run()]
         if telegram:
             tasks.append(telegram.start())
+        if heartbeat:
+            tasks.append(heartbeat.run())
 
         try:
             await asyncio.gather(*tasks)
@@ -479,6 +518,8 @@ def gateway():
             agent.stop()
             if telegram:
                 await telegram.stop()
+            if heartbeat:
+                heartbeat.stop()
 
     asyncio.run(run())
 
@@ -501,12 +542,10 @@ def status():
     console.print("SparkAgent Status\n")
 
     console.print(
-        f"Config:    {config_path} "
-        f"{'[green]>[/green]' if config_path.exists() else '[red]x[/red]'}"
+        f"Config:    {config_path} {'[green]>[/green]' if config_path.exists() else '[red]x[/red]'}"
     )
     console.print(
-        f"Workspace: {workspace} "
-        f"{'[green]>[/green]' if workspace.exists() else '[red]x[/red]'}"
+        f"Workspace: {workspace} {'[green]>[/green]' if workspace.exists() else '[red]x[/red]'}"
     )
 
     # Provider info
@@ -541,6 +580,12 @@ def status():
     console.print(
         f"Telegram:  "
         f"{'[green]enabled[/green]' if config.channels.telegram.enabled else '[dim]disabled[/dim]'}"
+    )
+
+    # Heartbeat
+    console.print(
+        f"Heartbeat: "
+        f"{'[green]enabled[/green]' if config.heartbeat.enabled else '[dim]disabled[/dim]'}"
     )
 
     if not provider_key:

@@ -59,6 +59,14 @@ class MemoryConfig(BaseModel):
     auto_evolve: bool = True
 
 
+class HeartbeatConfig(BaseModel):
+    """Heartbeat / scheduled task service configuration."""
+
+    enabled: bool = False
+    interval_minutes: int = 30
+    notify_chat_id: str = ""  # Optional Telegram chat_id for notifications
+
+
 class WebSearchConfig(BaseModel):
     """Web search configuration."""
 
@@ -79,6 +87,7 @@ class Config(BaseModel):
     channels: ChannelsConfig = Field(default_factory=ChannelsConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
+    heartbeat: HeartbeatConfig = Field(default_factory=HeartbeatConfig)
 
     @property
     def workspace_path(self) -> Path:

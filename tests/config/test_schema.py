@@ -8,6 +8,7 @@ from sparkagent.config.schema import (
     AgentConfig,
     ChannelsConfig,
     Config,
+    HeartbeatConfig,
     MemoryConfig,
     ProviderConfig,
     ProvidersConfig,
@@ -29,11 +30,7 @@ class TestTelegramConfig:
         assert config.allow_from == []
 
     def test_custom_values(self):
-        config = TelegramConfig(
-            enabled=True,
-            token="my-token",
-            allow_from=["user1", "user2"]
-        )
+        config = TelegramConfig(enabled=True, token="my-token", allow_from=["user1", "user2"])
         assert config.enabled is True
         assert config.token == "my-token"
         assert config.allow_from == ["user1", "user2"]
@@ -51,10 +48,7 @@ class TestProviderConfig:
         assert config.token_type == ""
 
     def test_custom_values(self):
-        config = ProviderConfig(
-            api_key="sk-test123",
-            api_base="https://api.example.com"
-        )
+        config = ProviderConfig(api_key="sk-test123", api_base="https://api.example.com")
         assert config.api_key == "sk-test123"
         assert config.api_base == "https://api.example.com"
 
@@ -100,6 +94,22 @@ class TestMemoryConfig:
         assert mc.auto_evolve is True
 
 
+class TestHeartbeatConfig:
+    """Tests for HeartbeatConfig."""
+
+    def test_default_values(self):
+        hc = HeartbeatConfig()
+        assert hc.enabled is False
+        assert hc.interval_minutes == 30
+        assert hc.notify_chat_id == ""
+
+    def test_custom_values(self):
+        hc = HeartbeatConfig(enabled=True, interval_minutes=15, notify_chat_id="12345")
+        assert hc.enabled is True
+        assert hc.interval_minutes == 15
+        assert hc.notify_chat_id == "12345"
+
+
 class TestAgentConfig:
     """Tests for AgentConfig."""
 
@@ -116,10 +126,7 @@ class TestAgentConfig:
 
     def test_custom_values(self):
         config = AgentConfig(
-            workspace="/custom/workspace",
-            provider="openai",
-            model="gpt-4.1",
-            max_iterations=10
+            workspace="/custom/workspace", provider="openai", model="gpt-4.1", max_iterations=10
         )
         assert config.workspace == "/custom/workspace"
         assert config.provider == "openai"
@@ -351,3 +358,25 @@ class TestConfigPersistence:
             assert loaded.providers.anthropic.refresh_token == ""
             assert loaded.providers.anthropic.expires_at == ""
             assert loaded.providers.anthropic.token_type == ""
+
+    def test_backward_compat_missing_heartbeat(self, temp_dir):
+        """Loading old config JSON without heartbeat key should use defaults."""
+        config_path = temp_dir / "config.json"
+
+        old_config = {
+            "agent": {"provider": "openai", "model": "gpt-4.1"},
+            "providers": {
+                "openai": {"api_key": "sk-test", "api_base": None},
+                "gemini": {"api_key": "", "api_base": None},
+                "anthropic": {"api_key": "", "api_base": None},
+            },
+            "channels": {"telegram": {"enabled": False, "token": "", "allow_from": []}},
+            "tools": {"web_search": {"api_key": ""}},
+        }
+        config_path.write_text(json.dumps(old_config))
+
+        with patch("sparkagent.config.schema.get_config_path", return_value=config_path):
+            loaded = load_config()
+            assert loaded.heartbeat.enabled is False
+            assert loaded.heartbeat.interval_minutes == 30
+            assert loaded.heartbeat.notify_chat_id == ""
