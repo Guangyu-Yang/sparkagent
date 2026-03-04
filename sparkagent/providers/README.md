@@ -2,6 +2,8 @@
 
 Unified interface for calling different LLM APIs. All providers normalize responses into a common `LLMResponse` format.
 
+> For setup instructions, see [Supported Providers](../../README.md#supported-providers) in the main README.
+
 ## Files
 
 | File | Purpose |

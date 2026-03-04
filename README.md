@@ -25,6 +25,8 @@ SparkAgent works with any model available through these provider SDKs:
 
 The onboarding wizard (`sparkagent onboard`) suggests popular models for each provider, but you can use any model by setting the `model` field in `~/.sparkagent/config.json`.
 
+See [`sparkagent/providers/README.md`](sparkagent/providers/README.md) for provider details and the `LLMProvider` interface.
+
 ## Installation
 
 **From source (recommended for development):**
@@ -228,67 +230,13 @@ Add to your `~/.sparkagent/config.json`:
 }
 ```
 
-### Configuration options
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `enabled` | `false` | Enable/disable the memory system |
-| `top_k_skills` | `3` | Number of skills selected per turn |
-| `max_memories_in_context` | `10` | Max memories injected into the system prompt |
-| `max_memory_chars` | `2000` | Max characters for the memory context section |
-| `hard_case_threshold` | `10` | Number of failures before triggering skill evolution |
-| `auto_evolve` | `true` | Automatically evolve skills when threshold is reached |
-
-### Storage layout
-
-```
-~/.sparkagent/memory/
-├── entries.jsonl        # Memory entries
-├── hard_cases.jsonl     # Hard case buffer for the designer
-└── skills/              # Memory skills as markdown files
-    ├── primitive_insert.md
-    ├── primitive_update.md
-    ├── primitive_delete.md
-    ├── primitive_noop.md
-    └── *.md             # Evolved skills (created by the designer)
-```
-
-## Project Structure
-
-```
-sparkagent/
-├── agent/           # Core agent logic
-│   ├── loop.py      #   Agent loop (LLM ↔ tools)
-│   ├── context.py   #   Prompt builder
-│   └── tools/       #   Built-in tools
-├── memory/          # Dynamic memory system
-│   ├── models.py    #   Data models
-│   ├── store.py     #   JSONL persistence & retrieval
-│   ├── skill_bank.py#   Markdown skill file management
-│   ├── prompts.py   #   LLM prompt templates
-│   ├── selector.py  #   Skill selection (Controller)
-│   ├── executor.py  #   Operation generation (Executor)
-│   └── designer.py  #   Skill evolution (Designer)
-├── auth/            # OAuth authentication (PKCE, token refresh)
-├── providers/       # LLM providers (OpenAI, Gemini, Anthropic)
-├── session/         # Conversation history
-├── channels/        # Chat integrations
-├── bus/             # Message routing
-├── config/          # Configuration
-└── cli/             # Commands & onboarding
-```
+See [`sparkagent/memory/README.md`](sparkagent/memory/README.md) for configuration options, storage layout, and the full memory pipeline.
 
 ## Built-in Tools
 
-| Tool | Description |
-|------|-------------|
-| `read_file` | Read file contents |
-| `write_file` | Write/create files |
-| `edit_file` | Replace text in files |
-| `list_directory` | List directory contents |
-| `shell` | Execute shell commands |
-| `web_search` | Search the web (Brave API) |
-| `web_fetch` | Fetch web page content |
+SparkAgent ships with file operations (`read_file`, `write_file`, `edit_file`, `list_directory`), a shell executor, and web tools (`web_search`, `web_fetch`). The shell tool blocks dangerous commands before execution.
+
+See [`sparkagent/agent/tools/README.md`](sparkagent/agent/tools/README.md) for the full tool API, registry system, and safety details.
 
 ## Configuration
 
@@ -298,48 +246,7 @@ The recommended way to configure SparkAgent is via the onboarding wizard:
 uv run sparkagent onboard
 ```
 
-The config file lives at `~/.sparkagent/config.json`. Here's a full example for reference:
-
-```json
-{
-  "agent": {
-    "workspace": "~/.sparkagent/workspace",
-    "provider": "openai",
-    "model": "gpt-4.1",
-    "max_iterations": 20
-  },
-  "providers": {
-    "openai": {
-      "api_key": "sk-xxx"
-    },
-    "gemini": {
-      "api_key": "AIza-xxx"
-    },
-    "anthropic": {
-      "api_key": "sk-ant-xxx"
-    }
-  },
-  "channels": {
-    "telegram": {
-      "enabled": true,
-      "token": "123456:ABC...",
-      "allow_from": ["123456789"]
-    }
-  },
-  "tools": {
-    "web_search": {
-      "api_key": "BSA-xxx"
-    }
-  },
-  "memory": {
-    "enabled": false
-  }
-}
-```
-
-The `agent.provider` field determines which provider's API key and SDK are used. Set it to `"openai"`, `"gemini"`, or `"anthropic"`.
-
-When using OAuth login (`sparkagent login`), the Anthropic provider config will also include `refresh_token`, `expires_at`, and `token_type` fields that are managed automatically.
+Configuration is stored at `~/.sparkagent/config.json` and is managed automatically by the CLI commands (`onboard`, `login`, `telegram onboard`). See [`sparkagent/config/README.md`](sparkagent/config/README.md) for the full schema reference.
 
 ## License
 

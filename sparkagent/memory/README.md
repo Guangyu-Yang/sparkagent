@@ -2,6 +2,8 @@
 
 LLM-driven memory management that learns what to remember across conversations. Uses "skills" (markdown templates) to guide memory extraction, and evolves new skills from failure cases.
 
+> For setup and overview, see [Dynamic Memory](../../README.md#dynamic-memory) in the main README.
+
 ## Files
 
 | File | Purpose |
