@@ -1,4 +1,4 @@
-# agent — Core Processing Engine
+# Agent — Core Processing Engine
 
 The main agent loop that receives messages, calls LLMs, executes tools, and returns responses.
 

@@ -1,4 +1,4 @@
-# codeact — CodeAct Execution Mode
+# CodeAct — CodeAct Execution Mode
 
 Lets the LLM generate and execute Python code instead of structured tool calls. Tools are injected as callable functions into a sandboxed namespace.
 

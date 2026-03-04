@@ -1,4 +1,4 @@
-# memory — Dynamic Memory / MemSkill System
+# Memory — Dynamic Memory / MemSkill System
 
 LLM-driven memory management that learns what to remember across conversations. Uses "skills" (markdown templates) to guide memory extraction, and evolves new skills from failure cases.
 

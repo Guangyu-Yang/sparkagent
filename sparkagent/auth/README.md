@@ -1,4 +1,4 @@
-# auth — Authentication
+# Auth — Authentication
 
 OAuth 2.0 + PKCE flow for authenticating with Anthropic's API.
 

@@ -1,4 +1,4 @@
-# providers — LLM Provider Adapters
+# Providers — LLM Provider Adapters
 
 Unified interface for calling different LLM APIs. All providers normalize responses into a common `LLMResponse` format.
 

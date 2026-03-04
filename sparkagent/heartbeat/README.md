@@ -1,4 +1,4 @@
-# heartbeat — Scheduled Task Service
+# Heartbeat — Scheduled Task Service
 
 Periodic timer that reads a task schedule from the workspace and uses the LLM to decide whether to execute tasks.
 

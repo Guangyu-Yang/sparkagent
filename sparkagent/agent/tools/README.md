@@ -1,4 +1,4 @@
-# tools — Tool System
+# Tools — Tool System
 
 Abstract base class, registry, and built-in tool implementations for file, shell, and web operations.
 
