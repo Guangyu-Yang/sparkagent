@@ -75,10 +75,10 @@ class TestSelectExecutionMode:
         assert result == "code_act"
 
     @pytest.mark.asyncio
-    async def test_extracts_code_act_from_surrounding_text(self):
+    async def test_non_prefixed_response_defaults_to_function_calling(self):
         provider = _MockProvider("I think code_act is best here.")
         result = await select_execution_mode(provider, "mock", "transform data")
-        assert result == "code_act"
+        assert result == "function_calling"
 
 
 class TestClassificationPrompt:

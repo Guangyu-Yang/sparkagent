@@ -8,8 +8,10 @@ from sparkagent.providers.base import LLMProvider
 
 CLASSIFICATION_PROMPT = """You are a routing assistant. Given a user message, decide which execution mode is best:
 
-- "function_calling": Best for simple, single-tool requests (read a file, run a search, fetch a URL). The LLM calls tools via structured JSON, one at a time.
-- "code_act": Best for multi-step tasks that benefit from composition — loops, conditionals, variable reuse, chaining tool results, batch operations, or data transformation. The LLM writes executable Python code that calls tools as functions.
+- "function_calling": The standard mode for most requests — questions, lookups, file operations, running commands, web searches. Uses structured JSON tool calls with reliable argument parsing. Prefer this unless the task clearly requires programmatic composition.
+- "code_act": Only for tasks that explicitly need programmatic logic — iterating over collections, conditional branching on intermediate results, complex data transformations, or chaining 3+ tool calls together. Uses executable Python code.
+
+Default to "function_calling" unless the task clearly requires code composition.
 
 Respond with ONLY "function_calling" or "code_act". Nothing else."""
 
@@ -41,6 +43,8 @@ async def select_execution_mode(
         temperature=0.0,
     )
     text = (response.content or "").strip().lower()
-    if "code_act" in text:
+    if text.startswith("function_calling"):
+        return "function_calling"
+    if text.startswith("code_act"):
         return "code_act"
     return "function_calling"
