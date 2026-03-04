@@ -1,16 +1,20 @@
 """Configuration schema using Pydantic."""
 
 import json
+import logging
 from pathlib import Path
+from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+logger = logging.getLogger(__name__)
 
 
 class TelegramConfig(BaseModel):
     """Telegram channel configuration."""
 
     enabled: bool = False
-    token: str = ""
+    token: str = Field(default="", repr=False)
     allow_from: list[str] = Field(default_factory=list)
 
 
@@ -23,11 +27,21 @@ class ChannelsConfig(BaseModel):
 class ProviderConfig(BaseModel):
     """LLM provider configuration."""
 
-    api_key: str = ""
+    api_key: str = Field(default="", repr=False)
     api_base: str | None = None
-    refresh_token: str = ""  # OAuth refresh token (empty for API key auth)
+    refresh_token: str = Field(default="", repr=False)  # OAuth refresh token
     expires_at: str = ""  # ISO 8601 expiry of access_token (empty for API key auth)
-    token_type: str = ""  # "oauth" when using OAuth, empty for API key auth
+    token_type: Literal["oauth", ""] = ""  # "oauth" when using OAuth, empty for API key auth
+
+    @field_validator("api_base")
+    @classmethod
+    def validate_api_base(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        v = v.strip().rstrip("/")
+        if not v.startswith(("https://", "http://")):
+            raise ValueError("api_base must use http:// or https:// scheme")
+        return v
 
 
 class ProvidersConfig(BaseModel):
@@ -42,20 +56,20 @@ class AgentConfig(BaseModel):
     """Agent configuration."""
 
     workspace: str = "~/.sparkagent/workspace"
-    provider: str = ""
+    provider: Literal["openai", "gemini", "anthropic", ""] = ""
     model: str = ""
-    max_iterations: int = 20
-    execution_mode: str = "function_calling"  # "function_calling" | "code_act" | "auto"
+    max_iterations: int = Field(default=20, ge=1, le=100)
+    execution_mode: Literal["function_calling", "code_act", "auto"] = "function_calling"
 
 
 class MemoryConfig(BaseModel):
     """Memory skill system configuration."""
 
     enabled: bool = False
-    top_k_skills: int = 3
-    max_memories_in_context: int = 10
-    max_memory_chars: int = 2000
-    hard_case_threshold: int = 10
+    top_k_skills: int = Field(default=3, ge=1, le=20)
+    max_memories_in_context: int = Field(default=10, ge=1, le=50)
+    max_memory_chars: int = Field(default=2000, ge=100, le=50_000)
+    hard_case_threshold: int = Field(default=10, ge=1, le=100)
     auto_evolve: bool = True
 
 
@@ -63,20 +77,20 @@ class HeartbeatConfig(BaseModel):
     """Heartbeat / scheduled task service configuration."""
 
     enabled: bool = False
-    interval_minutes: int = 30
+    interval_minutes: int = Field(default=30, ge=1, le=1440)
     notify_chat_id: str = ""  # Optional Telegram chat_id for notifications
 
 
 class WebSearchConfig(BaseModel):
     """Web search configuration."""
 
-    api_key: str = ""  # Brave Search API key
+    api_key: str = Field(default="", repr=False)  # Brave Search API key
 
 
 class TavilyConfig(BaseModel):
     """Tavily search and extract configuration."""
 
-    api_key: str = ""
+    api_key: str = Field(default="", repr=False)
 
 
 class ToolsConfig(BaseModel):
@@ -101,40 +115,28 @@ class Config(BaseModel):
         """Get expanded workspace path."""
         return Path(self.agent.workspace).expanduser()
 
-    def get_api_key(self) -> str | None:
-        """Get API key based on active provider."""
-        p = self.agent.provider
-        if p == "openai":
-            return self.providers.openai.api_key or None
-        elif p == "gemini":
-            return self.providers.gemini.api_key or None
-        elif p == "anthropic":
-            return self.providers.anthropic.api_key or None
-        return None
-
     def get_provider_config(self) -> ProviderConfig | None:
         """Get the ProviderConfig for the active provider."""
         p = self.agent.provider
-        if p == "openai":
-            return self.providers.openai
-        elif p == "gemini":
-            return self.providers.gemini
-        elif p == "anthropic":
-            return self.providers.anthropic
-        return None
+        return getattr(self.providers, p, None) if p else None
+
+    def get_api_key(self) -> str | None:
+        """Get API key based on active provider."""
+        pc = self.get_provider_config()
+        return (pc.api_key or None) if pc else None
 
     def get_api_base(self) -> str | None:
         """Get API base URL based on active provider."""
-        p = self.agent.provider
-        if p == "openai":
-            return self.providers.openai.api_base
-        elif p == "gemini":
-            return (
-                self.providers.gemini.api_base or "https://generativelanguage.googleapis.com/v1beta"
-            )
-        elif p == "anthropic":
-            return self.providers.anthropic.api_base or "https://api.anthropic.com"
-        return None
+        pc = self.get_provider_config()
+        if pc is None:
+            return None
+        if pc.api_base:
+            return pc.api_base
+        defaults = {
+            "gemini": "https://generativelanguage.googleapis.com/v1beta",
+            "anthropic": "https://api.anthropic.com",
+        }
+        return defaults.get(self.agent.provider)
 
 
 def get_config_path() -> Path:
@@ -150,8 +152,8 @@ def load_config() -> Config:
         try:
             data = json.loads(config_path.read_text())
             return Config(**data)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to load config from %s: %s", config_path, exc)
 
     return Config()
 
@@ -161,3 +163,4 @@ def save_config(config: Config) -> None:
     config_path = get_config_path()
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(config.model_dump_json(indent=2))
+    config_path.chmod(0o600)

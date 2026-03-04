@@ -1,8 +1,12 @@
 """Tests for configuration schema."""
 
 import json
+import stat
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
+from pydantic import ValidationError
 
 from sparkagent.config.schema import (
     AgentConfig,
@@ -35,6 +39,10 @@ class TestTelegramConfig:
         assert config.token == "my-token"
         assert config.allow_from == ["user1", "user2"]
 
+    def test_token_hidden_in_repr(self):
+        config = TelegramConfig(token="secret-telegram-token")
+        assert "secret-telegram-token" not in repr(config)
+
 
 class TestProviderConfig:
     """Tests for ProviderConfig."""
@@ -63,6 +71,47 @@ class TestProviderConfig:
         assert config.refresh_token == "refresh-token-xyz"
         assert config.expires_at == "2026-03-01T00:00:00+00:00"
         assert config.token_type == "oauth"
+
+    def test_invalid_token_type_rejected(self):
+        with pytest.raises(ValidationError):
+            ProviderConfig(token_type="bearer")
+
+    def test_sensitive_fields_hidden_in_repr(self):
+        config = ProviderConfig(
+            api_key="sk-secret-key",
+            refresh_token="refresh-secret",
+        )
+        r = repr(config)
+        assert "sk-secret-key" not in r
+        assert "refresh-secret" not in r
+
+    def test_api_base_accepts_https(self):
+        config = ProviderConfig(api_base="https://api.example.com")
+        assert config.api_base == "https://api.example.com"
+
+    def test_api_base_accepts_http(self):
+        config = ProviderConfig(api_base="http://localhost:8080")
+        assert config.api_base == "http://localhost:8080"
+
+    def test_api_base_strips_trailing_slash(self):
+        config = ProviderConfig(api_base="https://api.example.com/v1/")
+        assert config.api_base == "https://api.example.com/v1"
+
+    def test_api_base_rejects_ftp(self):
+        with pytest.raises(ValidationError, match="api_base must use http"):
+            ProviderConfig(api_base="ftp://files.example.com")
+
+    def test_api_base_rejects_file(self):
+        with pytest.raises(ValidationError, match="api_base must use http"):
+            ProviderConfig(api_base="file:///etc/passwd")
+
+    def test_api_base_rejects_bare_string(self):
+        with pytest.raises(ValidationError, match="api_base must use http"):
+            ProviderConfig(api_base="not-a-url")
+
+    def test_api_base_accepts_none(self):
+        config = ProviderConfig(api_base=None)
+        assert config.api_base is None
 
 
 class TestProvidersConfig:
@@ -93,6 +142,30 @@ class TestMemoryConfig:
         assert mc.hard_case_threshold == 10
         assert mc.auto_evolve is True
 
+    def test_top_k_skills_out_of_range(self):
+        with pytest.raises(ValidationError):
+            MemoryConfig(top_k_skills=0)
+        with pytest.raises(ValidationError):
+            MemoryConfig(top_k_skills=21)
+
+    def test_max_memories_in_context_out_of_range(self):
+        with pytest.raises(ValidationError):
+            MemoryConfig(max_memories_in_context=0)
+        with pytest.raises(ValidationError):
+            MemoryConfig(max_memories_in_context=51)
+
+    def test_max_memory_chars_out_of_range(self):
+        with pytest.raises(ValidationError):
+            MemoryConfig(max_memory_chars=99)
+        with pytest.raises(ValidationError):
+            MemoryConfig(max_memory_chars=50_001)
+
+    def test_hard_case_threshold_out_of_range(self):
+        with pytest.raises(ValidationError):
+            MemoryConfig(hard_case_threshold=0)
+        with pytest.raises(ValidationError):
+            MemoryConfig(hard_case_threshold=101)
+
 
 class TestHeartbeatConfig:
     """Tests for HeartbeatConfig."""
@@ -108,6 +181,12 @@ class TestHeartbeatConfig:
         assert hc.enabled is True
         assert hc.interval_minutes == 15
         assert hc.notify_chat_id == "12345"
+
+    def test_interval_minutes_out_of_range(self):
+        with pytest.raises(ValidationError):
+            HeartbeatConfig(interval_minutes=0)
+        with pytest.raises(ValidationError):
+            HeartbeatConfig(interval_minutes=1441)
 
 
 class TestAgentConfig:
@@ -133,6 +212,25 @@ class TestAgentConfig:
         assert config.model == "gpt-4.1"
         assert config.max_iterations == 10
 
+    def test_invalid_provider_rejected(self):
+        with pytest.raises(ValidationError):
+            AgentConfig(provider="unknown")
+
+    def test_invalid_execution_mode_rejected(self):
+        with pytest.raises(ValidationError):
+            AgentConfig(execution_mode="invalid")
+
+    def test_valid_execution_modes(self):
+        for mode in ("function_calling", "code_act", "auto"):
+            config = AgentConfig(execution_mode=mode)
+            assert config.execution_mode == mode
+
+    def test_max_iterations_out_of_range(self):
+        with pytest.raises(ValidationError):
+            AgentConfig(max_iterations=0)
+        with pytest.raises(ValidationError):
+            AgentConfig(max_iterations=101)
+
 
 class TestConfig:
     """Tests for the main Config class."""
@@ -153,21 +251,24 @@ class TestConfig:
     # --- get_api_key routing ---
 
     def test_get_api_key_openai(self):
-        config = Config()
-        config.agent.provider = "openai"
-        config.providers.openai.api_key = "sk-openai"
+        config = Config(
+            agent=AgentConfig(provider="openai"),
+            providers=ProvidersConfig(openai=ProviderConfig(api_key="sk-openai")),
+        )
         assert config.get_api_key() == "sk-openai"
 
     def test_get_api_key_gemini(self):
-        config = Config()
-        config.agent.provider = "gemini"
-        config.providers.gemini.api_key = "gemini-key"
+        config = Config(
+            agent=AgentConfig(provider="gemini"),
+            providers=ProvidersConfig(gemini=ProviderConfig(api_key="gemini-key")),
+        )
         assert config.get_api_key() == "gemini-key"
 
     def test_get_api_key_anthropic(self):
-        config = Config()
-        config.agent.provider = "anthropic"
-        config.providers.anthropic.api_key = "sk-ant-key"
+        config = Config(
+            agent=AgentConfig(provider="anthropic"),
+            providers=ProvidersConfig(anthropic=ProviderConfig(api_key="sk-ant-key")),
+        )
         assert config.get_api_key() == "sk-ant-key"
 
     def test_get_api_key_none_when_no_provider(self):
@@ -175,31 +276,30 @@ class TestConfig:
         assert config.get_api_key() is None
 
     def test_get_api_key_none_when_empty_key(self):
-        config = Config()
-        config.agent.provider = "openai"
+        config = Config(agent=AgentConfig(provider="openai"))
         assert config.get_api_key() is None
 
     # --- get_api_base routing ---
 
     def test_get_api_base_openai_default(self):
-        config = Config()
-        config.agent.provider = "openai"
+        config = Config(agent=AgentConfig(provider="openai"))
         assert config.get_api_base() is None  # None means SDK default
 
     def test_get_api_base_openai_custom(self):
-        config = Config()
-        config.agent.provider = "openai"
-        config.providers.openai.api_base = "https://openai.custom.com"
+        config = Config(
+            agent=AgentConfig(provider="openai"),
+            providers=ProvidersConfig(
+                openai=ProviderConfig(api_base="https://openai.custom.com")
+            ),
+        )
         assert config.get_api_base() == "https://openai.custom.com"
 
     def test_get_api_base_gemini_default(self):
-        config = Config()
-        config.agent.provider = "gemini"
+        config = Config(agent=AgentConfig(provider="gemini"))
         assert config.get_api_base() == "https://generativelanguage.googleapis.com/v1beta"
 
     def test_get_api_base_anthropic_default(self):
-        config = Config()
-        config.agent.provider = "anthropic"
+        config = Config(agent=AgentConfig(provider="anthropic"))
         assert config.get_api_base() == "https://api.anthropic.com"
 
     def test_get_api_base_none_when_no_provider(self):
@@ -209,22 +309,21 @@ class TestConfig:
     # --- get_provider_config routing ---
 
     def test_get_provider_config_openai(self):
-        config = Config()
-        config.agent.provider = "openai"
-        config.providers.openai.api_key = "sk-openai"
+        config = Config(
+            agent=AgentConfig(provider="openai"),
+            providers=ProvidersConfig(openai=ProviderConfig(api_key="sk-openai")),
+        )
         pc = config.get_provider_config()
         assert pc is config.providers.openai
         assert pc.api_key == "sk-openai"
 
     def test_get_provider_config_gemini(self):
-        config = Config()
-        config.agent.provider = "gemini"
+        config = Config(agent=AgentConfig(provider="gemini"))
         pc = config.get_provider_config()
         assert pc is config.providers.gemini
 
     def test_get_provider_config_anthropic(self):
-        config = Config()
-        config.agent.provider = "anthropic"
+        config = Config(agent=AgentConfig(provider="anthropic"))
         pc = config.get_provider_config()
         assert pc is config.providers.anthropic
 
@@ -232,10 +331,10 @@ class TestConfig:
         config = Config()
         assert config.get_provider_config() is None
 
-    def test_get_provider_config_none_when_unknown_provider(self):
-        config = Config()
-        config.agent.provider = "unknown"
-        assert config.get_provider_config() is None
+    def test_web_search_api_key_hidden_in_repr(self):
+        config = Config(tools=ToolsConfig(web_search={"api_key": "brave-secret"}))
+        r = repr(config)
+        assert "brave-secret" not in r
 
 
 class TestConfigPersistence:
@@ -251,10 +350,10 @@ class TestConfigPersistence:
 
         with patch("sparkagent.config.schema.get_config_path", return_value=config_path):
             # Create and save config
-            config = Config()
-            config.agent.provider = "openai"
-            config.agent.model = "gpt-4.1"
-            config.providers.openai.api_key = "test-key"
+            config = Config(
+                agent=AgentConfig(provider="openai", model="gpt-4.1"),
+                providers=ProvidersConfig(openai=ProviderConfig(api_key="test-key")),
+            )
             save_config(config)
 
             # Load config
@@ -262,6 +361,14 @@ class TestConfigPersistence:
             assert loaded.agent.provider == "openai"
             assert loaded.agent.model == "gpt-4.1"
             assert loaded.providers.openai.api_key == "test-key"
+
+    def test_save_config_sets_restrictive_permissions(self, temp_dir):
+        config_path = temp_dir / "config.json"
+
+        with patch("sparkagent.config.schema.get_config_path", return_value=config_path):
+            save_config(Config())
+            mode = config_path.stat().st_mode
+            assert stat.S_IMODE(mode) == 0o600
 
     def test_load_config_missing_file(self, temp_dir):
         config_path = temp_dir / "nonexistent.json"
@@ -280,10 +387,21 @@ class TestConfigPersistence:
             # Should return default config on error
             assert config.agent.model == ""
 
+    def test_load_config_invalid_json_logs_warning(self, temp_dir, caplog):
+        config_path = temp_dir / "config.json"
+        config_path.write_text("invalid json {{{")
+
+        with patch("sparkagent.config.schema.get_config_path", return_value=config_path):
+            import logging
+
+            with caplog.at_level(logging.WARNING, logger="sparkagent.config.schema"):
+                load_config()
+            assert "Failed to load config" in caplog.text
+
     def test_config_json_serialization(self):
-        config = Config()
-        config.agent.provider = "anthropic"
-        config.agent.model = "claude-sonnet-4-6"
+        config = Config(
+            agent=AgentConfig(provider="anthropic", model="claude-sonnet-4-6"),
+        )
 
         json_str = config.model_dump_json()
         data = json.loads(json_str)
@@ -300,11 +418,14 @@ class TestConfigPersistence:
         config_path = temp_dir / "config.json"
 
         with patch("sparkagent.config.schema.get_config_path", return_value=config_path):
-            config = Config()
-            config.agent.provider = "gemini"
-            config.agent.model = "gemini-2.5-flash"
-            config.providers.gemini.api_key = "gemini-key-123"
-            config.providers.gemini.api_base = "https://custom.gemini.api"
+            config = Config(
+                agent=AgentConfig(provider="gemini", model="gemini-2.5-flash"),
+                providers=ProvidersConfig(
+                    gemini=ProviderConfig(
+                        api_key="gemini-key-123", api_base="https://custom.gemini.api"
+                    )
+                ),
+            )
             save_config(config)
 
             loaded = load_config()
@@ -318,13 +439,17 @@ class TestConfigPersistence:
         config_path = temp_dir / "config.json"
 
         with patch("sparkagent.config.schema.get_config_path", return_value=config_path):
-            config = Config()
-            config.agent.provider = "anthropic"
-            config.agent.model = "claude-opus-4-6"
-            config.providers.anthropic.api_key = "sk-ant-oat01-access"
-            config.providers.anthropic.refresh_token = "refresh-xyz"
-            config.providers.anthropic.expires_at = "2026-03-01T12:00:00+00:00"
-            config.providers.anthropic.token_type = "oauth"
+            config = Config(
+                agent=AgentConfig(provider="anthropic", model="claude-opus-4-6"),
+                providers=ProvidersConfig(
+                    anthropic=ProviderConfig(
+                        api_key="sk-ant-oat01-access",
+                        refresh_token="refresh-xyz",
+                        expires_at="2026-03-01T12:00:00+00:00",
+                        token_type="oauth",
+                    )
+                ),
+            )
             save_config(config)
 
             loaded = load_config()
