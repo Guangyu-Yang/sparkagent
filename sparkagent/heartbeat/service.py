@@ -9,6 +9,23 @@ from typing import Any, Callable, Coroutine
 
 from sparkagent.providers.base import LLMProvider
 
+_DEFAULT_HEARTBEAT_CONTENT = """\
+# Heartbeat — Scheduled Tasks
+
+Define tasks for the heartbeat agent to evaluate periodically.
+Each task should specify a cadence and what to do.
+
+## Examples (uncomment to enable)
+
+<!-- ### Daily summary
+- Cadence: once per day, morning
+- Task: Summarize unread notifications and create a brief report -->
+
+<!-- ### Weekly review
+- Cadence: every Monday
+- Task: Review the week's activity and draft a summary -->
+"""
+
 _HEARTBEAT_TOOL: list[dict[str, Any]] = [
     {
         "type": "function",
@@ -79,6 +96,7 @@ class HeartbeatService:
     async def run(self) -> None:
         """Long-running coroutine — use with ``asyncio.gather()``."""
         self._running = True
+        self._ensure_heartbeat_file()
         print(f"Heartbeat started (interval={self._interval_s}s)")
         await self._loop()
 
@@ -105,11 +123,17 @@ class HeartbeatService:
             except Exception as e:
                 print(f"Heartbeat tick error: {e}")
 
-    async def _tick(self) -> None:
+    def _ensure_heartbeat_file(self) -> Path:
+        """Create HEARTBEAT.md with default template if it doesn't exist."""
         heartbeat_file = self._workspace / "HEARTBEAT.md"
         if not heartbeat_file.exists():
-            print("Heartbeat: no HEARTBEAT.md found, skipping")
-            return
+            self._workspace.mkdir(parents=True, exist_ok=True)
+            heartbeat_file.write_text(_DEFAULT_HEARTBEAT_CONTENT)
+            print("Heartbeat: created HEARTBEAT.md")
+        return heartbeat_file
+
+    async def _tick(self) -> None:
+        heartbeat_file = self._ensure_heartbeat_file()
 
         content = heartbeat_file.read_text().strip()
         if not content:
