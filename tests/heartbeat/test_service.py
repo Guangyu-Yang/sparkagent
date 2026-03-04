@@ -82,8 +82,8 @@ def _run_response(task: str = "do the thing") -> LLMResponse:
 
 class TestHeartbeatTick:
     @pytest.mark.asyncio
-    async def test_skip_when_no_heartbeat_file(self, tmp_path: Path) -> None:
-        executed = []
+    async def test_creates_heartbeat_file_when_missing(self, tmp_path: Path) -> None:
+        executed: list[str] = []
 
         async def on_exec(task: str) -> str:
             executed.append(task)
@@ -91,6 +91,8 @@ class TestHeartbeatTick:
 
         svc = _make_service(tmp_path, on_execute=on_exec)
         await svc.trigger_now()
+        assert (tmp_path / "HEARTBEAT.md").exists()
+        # Still no execution (template has only commented-out examples)
         assert executed == []
 
     @pytest.mark.asyncio
@@ -220,6 +222,11 @@ class TestHeartbeatLifecycle:
         )
         await svc.trigger_now()
         assert len(executed) == 1
+
+    def test_ensure_heartbeat_file_creates_on_startup(self, tmp_path: Path) -> None:
+        svc = _make_service(tmp_path)
+        svc._ensure_heartbeat_file()
+        assert (tmp_path / "HEARTBEAT.md").exists()
 
     def test_stop_sets_running_false(self, tmp_path: Path) -> None:
         svc = _make_service(tmp_path)
