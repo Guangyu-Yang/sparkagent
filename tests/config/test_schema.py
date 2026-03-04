@@ -135,7 +135,7 @@ class TestMemoryConfig:
 
     def test_default_values(self):
         mc = MemoryConfig()
-        assert mc.enabled is False
+        assert mc.enabled is True
         assert mc.top_k_skills == 3
         assert mc.max_memories_in_context == 10
         assert mc.max_memory_chars == 2000
@@ -172,7 +172,7 @@ class TestHeartbeatConfig:
 
     def test_default_values(self):
         hc = HeartbeatConfig()
-        assert hc.enabled is False
+        assert hc.enabled is True
         assert hc.interval_minutes == 30
         assert hc.notify_chat_id == ""
 
@@ -502,6 +502,6 @@ class TestConfigPersistence:
 
         with patch("sparkagent.config.schema.get_config_path", return_value=config_path):
             loaded = load_config()
-            assert loaded.heartbeat.enabled is False
+            assert loaded.heartbeat.enabled is True
             assert loaded.heartbeat.interval_minutes == 30
             assert loaded.heartbeat.notify_chat_id == ""

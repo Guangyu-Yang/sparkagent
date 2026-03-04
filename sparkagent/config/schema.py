@@ -65,7 +65,7 @@ class AgentConfig(BaseModel):
 class MemoryConfig(BaseModel):
     """Memory skill system configuration."""
 
-    enabled: bool = False
+    enabled: bool = True
     top_k_skills: int = Field(default=3, ge=1, le=20)
     max_memories_in_context: int = Field(default=10, ge=1, le=50)
     max_memory_chars: int = Field(default=2000, ge=100, le=50_000)
@@ -76,7 +76,7 @@ class MemoryConfig(BaseModel):
 class HeartbeatConfig(BaseModel):
     """Heartbeat / scheduled task service configuration."""
 
-    enabled: bool = False
+    enabled: bool = True
     interval_minutes: int = Field(default=30, ge=1, le=1440)
     notify_chat_id: str = ""  # Optional Telegram chat_id for notifications
 
