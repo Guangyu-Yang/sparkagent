@@ -62,6 +62,30 @@ class TestBuildSystemPrompt:
         cb.build_system_prompt()  # no current_message
         store.retrieve_for_context.assert_not_called()
 
+    def test_memory_instructions_present_when_store_set(self, tmp_path: Path) -> None:
+        store = MagicMock()
+        store.retrieve_for_context.return_value = ""
+        cb = ContextBuilder(tmp_path, memory_store=store)
+        prompt = cb.build_system_prompt()
+        assert "Memory System" in prompt
+        assert "DO NOT" in prompt
+        assert "memory pipeline" in prompt
+
+    def test_memory_instructions_absent_when_no_store(self, tmp_path: Path) -> None:
+        cb = ContextBuilder(tmp_path)
+        prompt = cb.build_system_prompt()
+        assert "Memory System" not in prompt
+
+    def test_memory_instructions_before_bootstrap(self, tmp_path: Path) -> None:
+        (tmp_path / "AGENTS.md").write_text("Custom agent instructions")
+        store = MagicMock()
+        store.retrieve_for_context.return_value = ""
+        cb = ContextBuilder(tmp_path, memory_store=store)
+        prompt = cb.build_system_prompt()
+        mem_pos = prompt.index("Memory System")
+        bootstrap_pos = prompt.index("Custom agent instructions")
+        assert mem_pos < bootstrap_pos
+
 
 # ---------------------------------------------------------------------------
 # Message assembly

@@ -30,6 +30,10 @@ class ContextBuilder:
         # Core identity
         parts.append(self._get_identity())
 
+        # Memory system instructions (before bootstrap files so they take priority)
+        if self._memory_store:
+            parts.append(self._get_memory_instructions())
+
         # Bootstrap files from workspace
         bootstrap = self._load_bootstrap_files()
         if bootstrap:
@@ -71,6 +75,26 @@ Your workspace is at: {workspace_path}
 - Explain what you're doing when using tools
 - Ask for clarification when requests are ambiguous
 - For normal conversation, just respond with text - don't use tools unless needed
+"""
+
+    def _get_memory_instructions(self) -> str:
+        """Get instructions explaining the dynamic memory system."""
+        return """## Memory System
+
+You have an automatic dynamic memory system that runs after every conversation turn.
+It captures facts, preferences, and corrections the user shares — you do NOT need to
+save these yourself.
+
+### Rules
+- **DO NOT** edit USER.md, SOUL.md, or MEMORY.md to store things the user asks you
+  to remember. The memory system handles this automatically.
+- USER.md is for static profile information only (e.g. name, timezone, role).
+  Only edit it when the user explicitly asks to update their profile.
+- SOUL.md defines your personality and should never be edited for memory purposes.
+- Your file tools (write_file, edit_file) remain fully available for non-memory tasks
+  such as writing code, creating documents, or editing project files.
+- When the user says "remember X" or "don't forget Y", simply acknowledge it.
+  The memory pipeline will capture it automatically.
 """
 
     def _load_bootstrap_files(self) -> str:
