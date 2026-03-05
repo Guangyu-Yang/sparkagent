@@ -150,6 +150,7 @@ class AnthropicProvider(LLMProvider):
         model: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        tool_choice: dict[str, Any] | str | None = None,
     ) -> LLMResponse:
         """Send a chat completion request."""
         await self._ensure_valid_token()
@@ -175,6 +176,8 @@ class AnthropicProvider(LLMProvider):
             kwargs["system"] = "\n\n".join(system_parts)
         if tools:
             kwargs["tools"] = [self._convert_tool(t) for t in tools]
+            if tool_choice is not None:
+                kwargs["tool_choice"] = tool_choice
 
         try:
             response = await self.client.messages.create(**kwargs)

@@ -36,20 +36,21 @@ class OpenAICompatibleProvider(LLMProvider):
         model: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        tool_choice: dict[str, Any] | str | None = None,
     ) -> LLMResponse:
         """Send a chat completion request."""
         model = model or self.default_model
-        
+
         payload: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
         }
-        
+
         if tools:
             payload["tools"] = tools
-            payload["tool_choice"] = "auto"
+            payload["tool_choice"] = tool_choice if tool_choice is not None else "auto"
         
         headers = {
             "Content-Type": "application/json",
