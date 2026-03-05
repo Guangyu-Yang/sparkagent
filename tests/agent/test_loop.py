@@ -12,6 +12,10 @@ import pytest
 from sparkagent.agent.loop import AgentLoop
 from sparkagent.bus import InboundMessage, MessageBus, OutboundMessage
 from sparkagent.config.schema import MemoryConfig
+from sparkagent.memory.models import MemoryOperation, OperationType
+from sparkagent.memory.store import MemoryStore
+from sparkagent.memory.skill_bank import SkillBank
+from sparkagent.memory.designer import SkillDesigner
 from sparkagent.providers.base import LLMProvider, LLMResponse, ToolCall
 
 
@@ -196,3 +200,146 @@ class TestSessionAndMemory:
             # Should not raise — error is caught in _process_message
             result = await loop.process_direct("test")
             assert result == "ok"
+
+
+# ---------------------------------------------------------------------------
+# Lazy memory initialization
+# ---------------------------------------------------------------------------
+
+
+class TestEnsureMemoryInitialized:
+    def test_creates_components_when_config_is_none(self, tmp_path: Path) -> None:
+        """When memory_config is None, lazy init creates a default enabled config."""
+        loop = _make_loop(tmp_path)
+        assert loop._memory_store is None
+        assert loop._skill_bank is None
+
+        result = loop._ensure_memory_initialized()
+
+        assert result is True
+        assert loop._memory_store is not None
+        assert loop._skill_bank is not None
+        assert loop._skill_designer is not None
+        assert loop._memory_config is not None
+        assert loop._memory_config.enabled is True
+
+    def test_respects_enabled_false(self, tmp_path: Path) -> None:
+        """When memory_config.enabled is False, lazy init returns False."""
+        mc = MemoryConfig(enabled=False)
+        loop = _make_loop(tmp_path, memory_config=mc)
+
+        result = loop._ensure_memory_initialized()
+
+        assert result is False
+        assert loop._memory_store is None
+        assert loop._skill_bank is None
+
+    def test_skips_when_already_initialized(self, tmp_path: Path) -> None:
+        """When components exist, returns True immediately."""
+        mc = MemoryConfig(enabled=True)
+        loop = _make_loop(tmp_path, memory_config=mc)
+        original_store = loop._memory_store
+
+        result = loop._ensure_memory_initialized()
+
+        assert result is True
+        assert loop._memory_store is original_store  # not re-created
+
+    def test_updates_context_builder(self, tmp_path: Path) -> None:
+        """Lazy init updates ContextBuilder with the new memory store."""
+        loop = _make_loop(tmp_path)
+        old_context = loop.context
+
+        loop._ensure_memory_initialized()
+
+        # Context should be recreated with the new memory store
+        assert loop.context is not old_context
+
+
+# ---------------------------------------------------------------------------
+# Hard case recording
+# ---------------------------------------------------------------------------
+
+
+class TestHardCaseRecording:
+    @pytest.mark.asyncio
+    async def test_records_hard_case_on_all_noop(self, tmp_path: Path) -> None:
+        """When all operations are NOOP, a hard case is recorded."""
+        mc = MemoryConfig(enabled=True)
+        loop = _make_loop(tmp_path, memory_config=mc)
+
+        noop_ops = [
+            MemoryOperation(type=OperationType.NOOP, skill_id="s1"),
+            MemoryOperation(type=OperationType.NOOP, skill_id="s2"),
+        ]
+
+        with (
+            patch("sparkagent.agent.loop.select_skills", new_callable=AsyncMock,
+                  return_value=["s1"]),
+            patch("sparkagent.agent.loop.execute_memory_skills", new_callable=AsyncMock,
+                  return_value=noop_ops),
+            patch.object(loop._skill_bank, "get_descriptions", return_value="skills"),
+            patch.object(loop._skill_bank, "get", return_value=MagicMock(id="s1")),
+            patch.object(loop._skill_designer, "record_hard_case") as mock_record,
+            patch.object(loop._skill_bank, "record_usage") as mock_usage,
+        ):
+            await loop._process_memory("hello", "world", "test-session")
+
+            mock_record.assert_called_once()
+            case = mock_record.call_args[0][0]
+            assert case.failure_type == "noop_only"
+            assert case.selected_skills == ["s1"]
+
+            # Skill usage should be recorded as failure
+            mock_usage.assert_called_once_with("s1", success=False)
+
+    @pytest.mark.asyncio
+    async def test_records_hard_case_on_empty_operations(self, tmp_path: Path) -> None:
+        """When operations list is empty, a hard case is recorded."""
+        mc = MemoryConfig(enabled=True)
+        loop = _make_loop(tmp_path, memory_config=mc)
+
+        with (
+            patch("sparkagent.agent.loop.select_skills", new_callable=AsyncMock,
+                  return_value=["s1"]),
+            patch("sparkagent.agent.loop.execute_memory_skills", new_callable=AsyncMock,
+                  return_value=[]),
+            patch.object(loop._skill_bank, "get_descriptions", return_value="skills"),
+            patch.object(loop._skill_bank, "get", return_value=MagicMock(id="s1")),
+            patch.object(loop._skill_designer, "record_hard_case") as mock_record,
+            patch.object(loop._skill_bank, "record_usage") as mock_usage,
+        ):
+            await loop._process_memory("hello", "world", "test-session")
+
+            mock_record.assert_called_once()
+            case = mock_record.call_args[0][0]
+            assert case.failure_type == "empty_operations"
+
+            mock_usage.assert_called_once_with("s1", success=False)
+
+    @pytest.mark.asyncio
+    async def test_success_true_on_real_operations(self, tmp_path: Path) -> None:
+        """When operations include non-NOOP types, success=True."""
+        mc = MemoryConfig(enabled=True)
+        loop = _make_loop(tmp_path, memory_config=mc)
+
+        real_ops = [
+            MemoryOperation(
+                type=OperationType.INSERT, content="remember this", skill_id="s1"
+            ),
+        ]
+
+        with (
+            patch("sparkagent.agent.loop.select_skills", new_callable=AsyncMock,
+                  return_value=["s1"]),
+            patch("sparkagent.agent.loop.execute_memory_skills", new_callable=AsyncMock,
+                  return_value=real_ops),
+            patch.object(loop._skill_bank, "get_descriptions", return_value="skills"),
+            patch.object(loop._skill_bank, "get", return_value=MagicMock(id="s1")),
+            patch.object(loop._skill_designer, "record_hard_case") as mock_record,
+            patch.object(loop._skill_bank, "record_usage") as mock_usage,
+        ):
+            await loop._process_memory("hello", "world", "test-session")
+
+            mock_record.assert_not_called()
+            mock_usage.assert_called_once_with("s1", success=True)

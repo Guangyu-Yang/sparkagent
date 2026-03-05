@@ -3,6 +3,8 @@
 import asyncio
 import json
 import logging
+import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +27,7 @@ from sparkagent.bus import InboundMessage, MessageBus, OutboundMessage
 from sparkagent.config.schema import MemoryConfig
 from sparkagent.memory.designer import SkillDesigner
 from sparkagent.memory.executor import execute_memory_skills
-from sparkagent.memory.models import MemoryOperation, OperationType
+from sparkagent.memory.models import HardCase, MemoryOperation, OperationType
 from sparkagent.memory.selector import select_skills
 from sparkagent.memory.skill_bank import SkillBank
 from sparkagent.memory.store import MemoryStore
@@ -302,11 +304,37 @@ class AgentLoop:
     # Memory processing
     # ------------------------------------------------------------------
 
+    def _ensure_memory_initialized(self) -> bool:
+        """Lazily initialize memory components if config allows."""
+        if self._memory_store and self._skill_bank:
+            return True
+
+        if not self._memory_config:
+            self._memory_config = MemoryConfig()
+
+        if not self._memory_config.enabled:
+            return False
+
+        if not self._memory_store:
+            self._memory_store = MemoryStore()
+        if not self._skill_bank:
+            self._skill_bank = SkillBank()
+        if not self._skill_designer:
+            self._skill_designer = SkillDesigner(
+                self._skill_bank,
+                hard_case_threshold=self._memory_config.hard_case_threshold,
+            )
+
+        # Update ContextBuilder with the newly created store
+        self.context = ContextBuilder(self.workspace, memory_store=self._memory_store)
+
+        return True
+
     async def _process_memory(
         self, user_message: str, assistant_response: str, session_key: str
     ) -> None:
         """Run the memory skill pipeline after a conversation turn."""
-        if not (self._memory_store and self._skill_bank and self._memory_config):
+        if not self._ensure_memory_initialized():
             return
 
         turn = f"User: {user_message}\nAssistant: {assistant_response}"
@@ -336,8 +364,26 @@ class AgentLoop:
         )
         for op in operations:
             self._apply_operation(op, session_key)
-            for skill in selected:
-                self._skill_bank.record_usage(skill.id, success=True)
+
+        # Detect failure cases for hard case recording
+        all_noop = operations and all(op.type == OperationType.NOOP for op in operations)
+        no_ops = len(operations) == 0
+
+        if (all_noop or no_ops) and self._skill_designer:
+            failure_type = "noop_only" if all_noop else "empty_operations"
+            case = HardCase(
+                id=uuid.uuid4().hex[:12],
+                conversation_snippet=turn[:500],
+                selected_skills=[s.id for s in selected],
+                operations=operations,
+                failure_type=failure_type,
+                created_at=datetime.now(),
+            )
+            self._skill_designer.record_hard_case(case)
+
+        success = not (all_noop or no_ops)
+        for skill in selected:
+            self._skill_bank.record_usage(skill.id, success=success)
 
         if (
             self._memory_config.auto_evolve
