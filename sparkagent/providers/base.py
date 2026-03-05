@@ -44,6 +44,7 @@ class LLMProvider(ABC):
         model: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        tool_choice: dict[str, Any] | str | None = None,
     ) -> LLMResponse:
         """Send a chat completion request."""
         pass

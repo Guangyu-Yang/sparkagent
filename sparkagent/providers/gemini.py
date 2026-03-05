@@ -36,6 +36,7 @@ class GeminiProvider(LLMProvider):
         model: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        tool_choice: dict[str, Any] | str | None = None,
     ) -> LLMResponse:
         """Send a chat completion request."""
         model = model or self.default_model
@@ -49,6 +50,10 @@ class GeminiProvider(LLMProvider):
             )
             if tools:
                 config.tools = [self._convert_tools(tools)]
+                if tool_choice is not None:
+                    config.tool_config = types.ToolConfig(
+                        function_calling_config=types.FunctionCallingConfig(mode="ANY")
+                    )
 
             response = await asyncio.to_thread(
                 self.client.models.generate_content,
