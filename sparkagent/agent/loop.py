@@ -25,12 +25,12 @@ from sparkagent.agent.tools import (
 )
 from sparkagent.bus import InboundMessage, MessageBus, OutboundMessage
 from sparkagent.config.schema import MemoryConfig
-from sparkagent.memory.designer import SkillDesigner
+from sparkagent.memory.designer import NullSkillDesigner, SkillDesigner
 from sparkagent.memory.executor import execute_memory_skills
 from sparkagent.memory.models import HardCase, MemoryOperation, OperationType
 from sparkagent.memory.selector import select_skills
-from sparkagent.memory.skill_bank import SkillBank
-from sparkagent.memory.store import MemoryStore
+from sparkagent.memory.skill_bank import NullSkillBank, SkillBank
+from sparkagent.memory.store import MemoryStore, NullMemoryStore
 from sparkagent.providers import LLMProvider
 from sparkagent.session import SessionManager
 
@@ -68,19 +68,22 @@ class AgentLoop:
         self.max_iterations = max_iterations
         self.execution_mode = execution_mode
 
-        # Memory system (opt-in)
-        self._memory_config = memory_config
-        self._memory_store: MemoryStore | None = None
-        self._skill_bank: SkillBank | None = None
-        self._skill_designer: SkillDesigner | None = None
+        # Memory system — eagerly init with null objects when disabled
+        self._memory_config = (
+            memory_config if memory_config is not None else MemoryConfig(enabled=False)
+        )
 
-        if memory_config and memory_config.enabled:
-            self._memory_store = MemoryStore()
-            self._skill_bank = SkillBank()
-            self._skill_designer = SkillDesigner(
+        if self._memory_config.enabled:
+            self._memory_store: MemoryStore | NullMemoryStore = MemoryStore()
+            self._skill_bank: SkillBank | NullSkillBank = SkillBank()
+            self._skill_designer: SkillDesigner | NullSkillDesigner = SkillDesigner(
                 self._skill_bank,
-                hard_case_threshold=memory_config.hard_case_threshold,
+                hard_case_threshold=self._memory_config.hard_case_threshold,
             )
+        else:
+            self._memory_store = NullMemoryStore()
+            self._skill_bank = NullSkillBank()
+            self._skill_designer = NullSkillDesigner()
 
         self.context = ContextBuilder(workspace, memory_store=self._memory_store)
         self.sessions = SessionManager()
@@ -123,10 +126,7 @@ class AgentLoop:
         while self._running:
             try:
                 # Wait for next message with timeout
-                msg = await asyncio.wait_for(
-                    self.bus.consume_inbound(),
-                    timeout=1.0
-                )
+                msg = await asyncio.wait_for(self.bus.consume_inbound(), timeout=1.0)
 
                 # Process it
                 try:
@@ -135,11 +135,13 @@ class AgentLoop:
                         await self.bus.publish_outbound(response)
                 except Exception as e:
                     logger.exception("Error processing message")
-                    await self.bus.publish_outbound(OutboundMessage(
-                        channel=msg.channel,
-                        chat_id=msg.chat_id,
-                        content=f"Sorry, I encountered an error: {str(e)}"
-                    ))
+                    await self.bus.publish_outbound(
+                        OutboundMessage(
+                            channel=msg.channel,
+                            chat_id=msg.chat_id,
+                            content=f"Sorry, I encountered an error: {str(e)}",
+                        )
+                    )
             except asyncio.TimeoutError:
                 continue
 
@@ -177,11 +179,10 @@ class AgentLoop:
         self.sessions.save(session)
 
         # Process memory (non-blocking, errors don't affect the response)
-        if self._memory_config and self._memory_config.enabled:
-            try:
-                await self._process_memory(msg.content, final_content, msg.session_key)
-            except Exception as e:
-                logger.warning("Memory processing error (non-fatal): %s", e)
+        try:
+            await self._process_memory(msg.content, final_content, msg.session_key)
+        except Exception as e:
+            logger.warning("Memory processing error (non-fatal): %s", e)
 
         return OutboundMessage(
             channel=msg.channel,
@@ -232,9 +233,7 @@ class AgentLoop:
 
                 for tool_call in response.tool_calls:
                     logger.debug("Executing tool: %s", tool_call.name)
-                    result = await self.tools.execute(
-                        tool_call.name, tool_call.arguments
-                    )
+                    result = await self.tools.execute(tool_call.name, tool_call.arguments)
                     messages = self.context.add_tool_result(
                         messages, tool_call.id, tool_call.name, result
                     )
@@ -254,9 +253,7 @@ class AgentLoop:
             self._codeact_executors[session_key] = CodeActExecutor(self.tools)
         return self._codeact_executors[session_key]
 
-    async def _process_message_codeact(
-        self, msg: InboundMessage, session: Any
-    ) -> str | None:
+    async def _process_message_codeact(self, msg: InboundMessage, session: Any) -> str | None:
         executor = self._get_codeact_executor(msg.session_key)
 
         messages = self.context.build_messages(
@@ -290,10 +287,12 @@ class AgentLoop:
                 observation = executor.execute(code)
 
                 # Feed observation back for the next iteration
-                messages.append({
-                    "role": "user",
-                    "content": f"[Observation]\n{observation}\n[/Observation]",
-                })
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": f"[Observation]\n{observation}\n[/Observation]",
+                    }
+                )
             else:
                 # No code — this is the final answer
                 return self._codeact_parser.extract_text_response(text) or text
@@ -304,37 +303,11 @@ class AgentLoop:
     # Memory processing
     # ------------------------------------------------------------------
 
-    def _ensure_memory_initialized(self) -> bool:
-        """Lazily initialize memory components if config allows."""
-        if self._memory_store and self._skill_bank:
-            return True
-
-        if not self._memory_config:
-            self._memory_config = MemoryConfig()
-
-        if not self._memory_config.enabled:
-            return False
-
-        if not self._memory_store:
-            self._memory_store = MemoryStore()
-        if not self._skill_bank:
-            self._skill_bank = SkillBank()
-        if not self._skill_designer:
-            self._skill_designer = SkillDesigner(
-                self._skill_bank,
-                hard_case_threshold=self._memory_config.hard_case_threshold,
-            )
-
-        # Update ContextBuilder with the newly created store
-        self.context = ContextBuilder(self.workspace, memory_store=self._memory_store)
-
-        return True
-
     async def _process_memory(
         self, user_message: str, assistant_response: str, session_key: str
     ) -> None:
         """Run the memory skill pipeline after a conversation turn."""
-        if not self._ensure_memory_initialized():
+        if not self._memory_config.enabled:
             return
 
         turn = f"User: {user_message}\nAssistant: {assistant_response}"
@@ -369,7 +342,7 @@ class AgentLoop:
         all_noop = operations and all(op.type == OperationType.NOOP for op in operations)
         no_ops = len(operations) == 0
 
-        if (all_noop or no_ops) and self._skill_designer:
+        if all_noop or no_ops:
             failure_type = "noop_only" if all_noop else "empty_operations"
             case = HardCase(
                 id=uuid.uuid4().hex[:12],
@@ -385,34 +358,48 @@ class AgentLoop:
         for skill in selected:
             self._skill_bank.record_usage(skill.id, success=success)
 
-        if (
-            self._memory_config.auto_evolve
-            and self._skill_designer
-            and self._skill_designer.should_evolve()
-        ):
+        if self._memory_config.auto_evolve and self._skill_designer.should_evolve():
             await self._skill_designer.evolve_skills(self.provider, self.model)
             self._skill_designer.check_rollbacks()
 
-    def _apply_operation(self, op: MemoryOperation, session_key: str) -> None:
-        """Apply a single memory operation to the store."""
-        if not self._memory_store:
-            return
+    _OP_HANDLERS: dict[OperationType, str] = {
+        OperationType.INSERT: "_apply_insert",
+        OperationType.UPDATE: "_apply_update",
+        OperationType.DELETE: "_apply_delete",
+    }
 
-        if op.type == OperationType.INSERT and op.content:
-            self._memory_store.insert(
-                content=op.content,
-                tags=op.tags,
-                source_session=session_key,
-                source_skill=op.skill_id,
-            )
-        elif op.type == OperationType.UPDATE and op.target_id:
-            self._memory_store.update(
-                entry_id=op.target_id,
-                content=op.content or None,
-                tags=op.tags or None,
-            )
-        elif op.type == OperationType.DELETE and op.target_id:
-            self._memory_store.delete(op.target_id)
+    def _apply_operation(self, op: MemoryOperation, session_key: str) -> None:
+        """Apply a single memory operation to the store via dispatch table."""
+        method_name = self._OP_HANDLERS.get(op.type)
+        if method_name:
+            getattr(self, method_name)(op, session_key)
+
+    def _apply_insert(self, op: MemoryOperation, session_key: str) -> None:
+        """Handle an INSERT memory operation."""
+        if not op.content:
+            return
+        self._memory_store.insert(
+            content=op.content,
+            tags=op.tags,
+            source_session=session_key,
+            source_skill=op.skill_id,
+        )
+
+    def _apply_update(self, op: MemoryOperation, session_key: str) -> None:
+        """Handle an UPDATE memory operation."""
+        if not op.target_id:
+            return
+        self._memory_store.update(
+            entry_id=op.target_id,
+            content=op.content or None,
+            tags=op.tags or None,
+        )
+
+    def _apply_delete(self, op: MemoryOperation, session_key: str) -> None:
+        """Handle a DELETE memory operation."""
+        if not op.target_id:
+            return
+        self._memory_store.delete(op.target_id)
 
     async def process_direct(self, content: str, session_key: str = "cli:direct") -> str:
         """Process a message directly (for CLI usage).
