@@ -131,7 +131,7 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
         return {}, text
 
     frontmatter_text = text[3:end_idx].strip()
-    body = text[end_idx + 3:].strip()
+    body = text[end_idx + 3 :].strip()
 
     metadata: dict[str, str] = {}
     for line in frontmatter_text.split("\n"):
@@ -144,6 +144,36 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
         metadata[key] = value
 
     return metadata, body
+
+
+class NullSkillBank:
+    """No-op skill bank used when the memory system is disabled."""
+
+    def get(self, skill_id):
+        """Return None — no skills."""
+        return None
+
+    def get_all(self):
+        """Return empty list."""
+        return []
+
+    def get_descriptions(self):
+        """Return empty string."""
+        return ""
+
+    def add_skill(self, skill):
+        """No-op."""
+
+    def remove_skill(self, skill_id):
+        """Return False — nothing to remove."""
+        return False
+
+    def record_usage(self, skill_id, success=True):
+        """No-op."""
+
+    def rollback_skill(self, skill_id):
+        """Return False — nothing to roll back."""
+        return False
 
 
 class SkillBank:

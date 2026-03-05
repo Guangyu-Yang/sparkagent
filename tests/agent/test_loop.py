@@ -13,9 +13,9 @@ from sparkagent.agent.loop import AgentLoop
 from sparkagent.bus import InboundMessage, MessageBus, OutboundMessage
 from sparkagent.config.schema import MemoryConfig
 from sparkagent.memory.models import MemoryOperation, OperationType
-from sparkagent.memory.store import MemoryStore
-from sparkagent.memory.skill_bank import SkillBank
-from sparkagent.memory.designer import SkillDesigner
+from sparkagent.memory.store import MemoryStore, NullMemoryStore
+from sparkagent.memory.skill_bank import NullSkillBank
+from sparkagent.memory.designer import NullSkillDesigner
 from sparkagent.providers.base import LLMProvider, LLMResponse, ToolCall
 
 
@@ -71,16 +71,21 @@ class TestInit:
         loop = _make_loop(tmp_path)
         names = set(loop.tools.list_tools())
         expected = {
-            "read_file", "write_file", "list_directory", "edit_file",
-            "shell", "web_search", "web_fetch",
+            "read_file",
+            "write_file",
+            "list_directory",
+            "edit_file",
+            "shell",
+            "web_search",
+            "web_fetch",
         }
         assert names == expected
 
-    def test_memory_disabled(self, tmp_path: Path) -> None:
+    def test_memory_disabled_uses_null_objects(self, tmp_path: Path) -> None:
         loop = _make_loop(tmp_path)
-        assert loop._memory_store is None
-        assert loop._skill_bank is None
-        assert loop._skill_designer is None
+        assert isinstance(loop._memory_store, NullMemoryStore)
+        assert isinstance(loop._skill_bank, NullSkillBank)
+        assert isinstance(loop._skill_designer, NullSkillDesigner)
 
     def test_memory_enabled(self, tmp_path: Path) -> None:
         mc = MemoryConfig(enabled=True)
@@ -207,53 +212,34 @@ class TestSessionAndMemory:
 # ---------------------------------------------------------------------------
 
 
-class TestEnsureMemoryInitialized:
-    def test_creates_components_when_config_is_none(self, tmp_path: Path) -> None:
-        """When memory_config is None, lazy init creates a default enabled config."""
+class TestEagerMemoryInit:
+    def test_null_objects_when_config_is_none(self, tmp_path: Path) -> None:
+        """When memory_config is None, null objects are created (disabled by default)."""
         loop = _make_loop(tmp_path)
-        assert loop._memory_store is None
-        assert loop._skill_bank is None
+        assert isinstance(loop._memory_store, NullMemoryStore)
+        assert isinstance(loop._skill_bank, NullSkillBank)
+        assert isinstance(loop._skill_designer, NullSkillDesigner)
+        assert loop._memory_config.enabled is False
 
-        result = loop._ensure_memory_initialized()
-
-        assert result is True
-        assert loop._memory_store is not None
-        assert loop._skill_bank is not None
-        assert loop._skill_designer is not None
-        assert loop._memory_config is not None
-        assert loop._memory_config.enabled is True
-
-    def test_respects_enabled_false(self, tmp_path: Path) -> None:
-        """When memory_config.enabled is False, lazy init returns False."""
+    def test_null_objects_when_disabled(self, tmp_path: Path) -> None:
+        """When memory_config.enabled is False, null objects are used."""
         mc = MemoryConfig(enabled=False)
         loop = _make_loop(tmp_path, memory_config=mc)
+        assert isinstance(loop._memory_store, NullMemoryStore)
+        assert isinstance(loop._skill_bank, NullSkillBank)
 
-        result = loop._ensure_memory_initialized()
-
-        assert result is False
-        assert loop._memory_store is None
-        assert loop._skill_bank is None
-
-    def test_skips_when_already_initialized(self, tmp_path: Path) -> None:
-        """When components exist, returns True immediately."""
+    def test_real_objects_when_enabled(self, tmp_path: Path) -> None:
+        """When enabled, concrete instances are created eagerly in __init__."""
         mc = MemoryConfig(enabled=True)
         loop = _make_loop(tmp_path, memory_config=mc)
-        original_store = loop._memory_store
+        assert isinstance(loop._memory_store, MemoryStore)
+        assert not isinstance(loop._memory_store, NullMemoryStore)
 
-        result = loop._ensure_memory_initialized()
-
-        assert result is True
-        assert loop._memory_store is original_store  # not re-created
-
-    def test_updates_context_builder(self, tmp_path: Path) -> None:
-        """Lazy init updates ContextBuilder with the new memory store."""
-        loop = _make_loop(tmp_path)
-        old_context = loop.context
-
-        loop._ensure_memory_initialized()
-
-        # Context should be recreated with the new memory store
-        assert loop.context is not old_context
+    def test_context_builder_receives_store(self, tmp_path: Path) -> None:
+        """ContextBuilder is initialized with the memory store in __init__."""
+        mc = MemoryConfig(enabled=True)
+        loop = _make_loop(tmp_path, memory_config=mc)
+        assert loop.context._memory_store is loop._memory_store
 
 
 # ---------------------------------------------------------------------------
@@ -274,10 +260,14 @@ class TestHardCaseRecording:
         ]
 
         with (
-            patch("sparkagent.agent.loop.select_skills", new_callable=AsyncMock,
-                  return_value=["s1"]),
-            patch("sparkagent.agent.loop.execute_memory_skills", new_callable=AsyncMock,
-                  return_value=noop_ops),
+            patch(
+                "sparkagent.agent.loop.select_skills", new_callable=AsyncMock, return_value=["s1"]
+            ),
+            patch(
+                "sparkagent.agent.loop.execute_memory_skills",
+                new_callable=AsyncMock,
+                return_value=noop_ops,
+            ),
             patch.object(loop._skill_bank, "get_descriptions", return_value="skills"),
             patch.object(loop._skill_bank, "get", return_value=MagicMock(id="s1")),
             patch.object(loop._skill_designer, "record_hard_case") as mock_record,
@@ -300,10 +290,14 @@ class TestHardCaseRecording:
         loop = _make_loop(tmp_path, memory_config=mc)
 
         with (
-            patch("sparkagent.agent.loop.select_skills", new_callable=AsyncMock,
-                  return_value=["s1"]),
-            patch("sparkagent.agent.loop.execute_memory_skills", new_callable=AsyncMock,
-                  return_value=[]),
+            patch(
+                "sparkagent.agent.loop.select_skills", new_callable=AsyncMock, return_value=["s1"]
+            ),
+            patch(
+                "sparkagent.agent.loop.execute_memory_skills",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
             patch.object(loop._skill_bank, "get_descriptions", return_value="skills"),
             patch.object(loop._skill_bank, "get", return_value=MagicMock(id="s1")),
             patch.object(loop._skill_designer, "record_hard_case") as mock_record,
@@ -324,16 +318,18 @@ class TestHardCaseRecording:
         loop = _make_loop(tmp_path, memory_config=mc)
 
         real_ops = [
-            MemoryOperation(
-                type=OperationType.INSERT, content="remember this", skill_id="s1"
-            ),
+            MemoryOperation(type=OperationType.INSERT, content="remember this", skill_id="s1"),
         ]
 
         with (
-            patch("sparkagent.agent.loop.select_skills", new_callable=AsyncMock,
-                  return_value=["s1"]),
-            patch("sparkagent.agent.loop.execute_memory_skills", new_callable=AsyncMock,
-                  return_value=real_ops),
+            patch(
+                "sparkagent.agent.loop.select_skills", new_callable=AsyncMock, return_value=["s1"]
+            ),
+            patch(
+                "sparkagent.agent.loop.execute_memory_skills",
+                new_callable=AsyncMock,
+                return_value=real_ops,
+            ),
             patch.object(loop._skill_bank, "get_descriptions", return_value="skills"),
             patch.object(loop._skill_bank, "get", return_value=MagicMock(id="s1")),
             patch.object(loop._skill_designer, "record_hard_case") as mock_record,

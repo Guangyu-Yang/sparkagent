@@ -40,45 +40,61 @@ def main(
 # ============================================================================
 
 
+def _create_anthropic_provider(config, api_key, api_base, model):
+    """Create an Anthropic provider with OAuth token refresh support."""
+    from sparkagent.config import save_config
+    from sparkagent.providers.anthropic import AnthropicProvider
+
+    provider_config = config.get_provider_config()
+
+    def on_token_refresh(access_token, refresh_token, expires_at):
+        provider_config.api_key = access_token
+        provider_config.refresh_token = refresh_token
+        provider_config.expires_at = expires_at
+        save_config(config)
+
+    return AnthropicProvider(
+        api_key=api_key,
+        api_base=api_base,
+        default_model=model,
+        refresh_token=provider_config.refresh_token or None,
+        expires_at=provider_config.expires_at or None,
+        token_type=provider_config.token_type or None,
+        on_token_refresh=on_token_refresh if provider_config.token_type == "oauth" else None,
+    )
+
+
+def _create_gemini_provider(config, api_key, api_base, model):
+    """Create a Gemini provider."""
+    from sparkagent.providers.gemini import GeminiProvider
+
+    return GeminiProvider(api_key=api_key, api_base=api_base, default_model=model)
+
+
+def _create_openai_provider(config, api_key, api_base, model):
+    """Create an OpenAI-compatible provider (default fallback)."""
+    from sparkagent.providers import OpenAICompatibleProvider
+
+    return OpenAICompatibleProvider(api_key=api_key, api_base=api_base, default_model=model)
+
+
+_PROVIDER_FACTORIES = {
+    "anthropic": _create_anthropic_provider,
+    "gemini": _create_gemini_provider,
+}
+
+
 def create_provider(config):
     """Instantiate the correct LLM provider from config.
 
     Uses lazy imports so a missing SDK only errors when that provider is selected.
     """
-    from sparkagent.providers import OpenAICompatibleProvider
-
-    provider_name = config.agent.provider
     api_key = config.get_api_key()
     api_base = config.get_api_base()
     model = config.agent.model
 
-    if provider_name == "anthropic":
-        from sparkagent.config import save_config
-        from sparkagent.providers.anthropic import AnthropicProvider
-
-        provider_config = config.get_provider_config()
-
-        def on_token_refresh(access_token, refresh_token, expires_at):
-            provider_config.api_key = access_token
-            provider_config.refresh_token = refresh_token
-            provider_config.expires_at = expires_at
-            save_config(config)
-
-        return AnthropicProvider(
-            api_key=api_key,
-            api_base=api_base,
-            default_model=model,
-            refresh_token=provider_config.refresh_token or None,
-            expires_at=provider_config.expires_at or None,
-            token_type=provider_config.token_type or None,
-            on_token_refresh=on_token_refresh if provider_config.token_type == "oauth" else None,
-        )
-    elif provider_name == "gemini":
-        from sparkagent.providers.gemini import GeminiProvider
-
-        return GeminiProvider(api_key=api_key, api_base=api_base, default_model=model)
-    else:
-        return OpenAICompatibleProvider(api_key=api_key, api_base=api_base, default_model=model)
+    factory = _PROVIDER_FACTORIES.get(config.agent.provider, _create_openai_provider)
+    return factory(config, api_key, api_base, model)
 
 
 # ============================================================================
@@ -148,6 +164,83 @@ def _run_oauth_flow(config):
 # ============================================================================
 
 
+def _onboard_step_credentials(config, provider):
+    """Onboard Step 3: collect credentials (API key or OAuth)."""
+    if provider.key == "anthropic":
+        console.print("[bold]Step 3:[/bold] Choose authentication method\n")
+        console.print("  [cyan]1[/cyan]. Paste an API key or token")
+        console.print("  [cyan]2[/cyan]. Log in via browser (Claude Max/Pro)")
+        console.print()
+
+        auth_choice = typer.prompt("Select auth method", type=int, default=1)
+
+        if auth_choice == 2:
+            _run_oauth_flow(config)
+            return
+
+        console.print(
+            f"\n  Get one at: [link={provider.key_url_hint}]{provider.key_url_hint}[/link]\n"
+        )
+        api_key = typer.prompt("API key / token", hide_input=True)
+        if not api_key.strip():
+            console.print("[red]Credential cannot be empty.[/red]")
+            raise typer.Exit(1)
+
+        provider_config = getattr(config.providers, provider.key)
+        provider_config.api_key = api_key.strip()
+        # Clear any previous OAuth state
+        provider_config.refresh_token = ""
+        provider_config.expires_at = ""
+        provider_config.token_type = ""
+        console.print("  [green]>[/green] Credential saved\n")
+        return
+
+    console.print("[bold]Step 3:[/bold] Enter your API key or token\n")
+    console.print(f"  Get one at: [link={provider.key_url_hint}]{provider.key_url_hint}[/link]\n")
+
+    api_key = typer.prompt("API key / token", hide_input=True)
+    if not api_key.strip():
+        console.print("[red]Credential cannot be empty.[/red]")
+        raise typer.Exit(1)
+
+    provider_config = getattr(config.providers, provider.key)
+    provider_config.api_key = api_key.strip()
+    console.print("  [green]>[/green] Credential saved\n")
+
+
+def _onboard_step_web_search(config):
+    """Onboard Step 4: configure optional web search provider."""
+    console.print("[bold]Step 4:[/bold] Choose a web search provider\n")
+    console.print("  [cyan]1[/cyan]. None")
+    console.print("  [cyan]2[/cyan]. Brave Search")
+    console.print("  [cyan]3[/cyan]. Tavily")
+    console.print()
+
+    web_choice = typer.prompt("Select web search provider", type=int, default=1)
+
+    if web_choice == 2:
+        console.print(
+            "\n  Get a key at: "
+            "[link=https://brave.com/search/api/]https://brave.com/search/api/[/link]\n"
+        )
+        brave_key = typer.prompt("Brave Search API key", hide_input=True)
+        if brave_key.strip():
+            config.tools.web_search.api_key = brave_key.strip()
+            console.print("  [green]>[/green] Brave Search configured\n")
+        else:
+            console.print("  [yellow]Skipped (empty key)[/yellow]\n")
+    elif web_choice == 3:
+        console.print("\n  Get a key at: [link=https://tavily.com/]https://tavily.com/[/link]\n")
+        tavily_key = typer.prompt("Tavily API key", hide_input=True)
+        if tavily_key.strip():
+            config.tools.tavily.api_key = tavily_key.strip()
+            console.print("  [green]>[/green] Tavily configured\n")
+        else:
+            console.print("  [yellow]Skipped (empty key)[/yellow]\n")
+    else:
+        console.print("  [green]>[/green] No web search provider\n")
+
+
 @app.command()
 def onboard():
     """Interactive setup wizard for provider, model, and API key."""
@@ -193,80 +286,9 @@ def onboard():
     config.agent.model = model.id
     console.print(f"  [green]>[/green] {model.label} ({model.id})\n")
 
-    # --- Step 3: Enter credential ---
-    if provider.key == "anthropic":
-        # Offer OAuth option for Anthropic
-        console.print("[bold]Step 3:[/bold] Choose authentication method\n")
-        console.print("  [cyan]1[/cyan]. Paste an API key or token")
-        console.print("  [cyan]2[/cyan]. Log in via browser (Claude Max/Pro)")
-        console.print()
-
-        auth_choice = typer.prompt("Select auth method", type=int, default=1)
-
-        if auth_choice == 2:
-            _run_oauth_flow(config)
-        else:
-            console.print(
-                f"\n  Get one at: [link={provider.key_url_hint}]{provider.key_url_hint}[/link]\n"
-            )
-            api_key = typer.prompt("API key / token", hide_input=True)
-            if not api_key.strip():
-                console.print("[red]Credential cannot be empty.[/red]")
-                raise typer.Exit(1)
-
-            provider_config = getattr(config.providers, provider.key)
-            provider_config.api_key = api_key.strip()
-            # Clear any previous OAuth state
-            provider_config.refresh_token = ""
-            provider_config.expires_at = ""
-            provider_config.token_type = ""
-            console.print("  [green]>[/green] Credential saved\n")
-    else:
-        console.print("[bold]Step 3:[/bold] Enter your API key or token\n")
-        console.print(
-            f"  Get one at: [link={provider.key_url_hint}]{provider.key_url_hint}[/link]\n"
-        )
-
-        api_key = typer.prompt("API key / token", hide_input=True)
-        if not api_key.strip():
-            console.print("[red]Credential cannot be empty.[/red]")
-            raise typer.Exit(1)
-
-        # Save the credential to the correct provider slot
-        provider_config = getattr(config.providers, provider.key)
-        provider_config.api_key = api_key.strip()
-        console.print("  [green]>[/green] Credential saved\n")
-
-    # --- Step 4: Web search provider ---
-    console.print("[bold]Step 4:[/bold] Choose a web search provider\n")
-    console.print("  [cyan]1[/cyan]. None")
-    console.print("  [cyan]2[/cyan]. Brave Search")
-    console.print("  [cyan]3[/cyan]. Tavily")
-    console.print()
-
-    web_choice = typer.prompt("Select web search provider", type=int, default=1)
-
-    if web_choice == 2:
-        console.print(
-            "\n  Get a key at: "
-            "[link=https://brave.com/search/api/]https://brave.com/search/api/[/link]\n"
-        )
-        brave_key = typer.prompt("Brave Search API key", hide_input=True)
-        if brave_key.strip():
-            config.tools.web_search.api_key = brave_key.strip()
-            console.print("  [green]>[/green] Brave Search configured\n")
-        else:
-            console.print("  [yellow]Skipped (empty key)[/yellow]\n")
-    elif web_choice == 3:
-        console.print("\n  Get a key at: [link=https://tavily.com/]https://tavily.com/[/link]\n")
-        tavily_key = typer.prompt("Tavily API key", hide_input=True)
-        if tavily_key.strip():
-            config.tools.tavily.api_key = tavily_key.strip()
-            console.print("  [green]>[/green] Tavily configured\n")
-        else:
-            console.print("  [yellow]Skipped (empty key)[/yellow]\n")
-    else:
-        console.print("  [green]>[/green] No web search provider\n")
+    # --- Step 3 & 4: Credentials + web search ---
+    _onboard_step_credentials(config, provider)
+    _onboard_step_web_search(config)
 
     # --- Step 5: Save config ---
     save_config(config)
@@ -525,17 +547,20 @@ def gateway(
     if config.tools.tavily.api_key:
         console.print("[green]>[/green] Tavily enabled")
 
-    # Setup Telegram if enabled
-    telegram = None
+    # Collect async tasks and cleanup callbacks
+    tasks = [agent.run()]
+    cleanup_sync = [agent.stop]
+    cleanup_async = []
+
     if config.channels.telegram.enabled:
         telegram = TelegramChannel(config, bus)
         bus.on_outbound(telegram.send)
+        tasks.append(telegram.start())
+        cleanup_async.append(telegram.stop)
         console.print("[green]>[/green] Telegram enabled")
     else:
         console.print("[yellow]Warning: No channels enabled[/yellow]")
 
-    # Setup heartbeat if enabled
-    heartbeat = None
     if config.heartbeat.enabled:
         from sparkagent.heartbeat import HeartbeatService
 
@@ -561,24 +586,19 @@ def gateway(
             on_execute=_heartbeat_execute,
             on_notify=_heartbeat_notify,
         )
+        tasks.append(heartbeat.run())
+        cleanup_sync.append(heartbeat.stop)
         console.print("[green]>[/green] Heartbeat enabled")
 
     async def run():
-        tasks = [agent.run()]
-        if telegram:
-            tasks.append(telegram.start())
-        if heartbeat:
-            tasks.append(heartbeat.run())
-
         try:
             await asyncio.gather(*tasks)
         except KeyboardInterrupt:
             console.print("\nShutting down...")
-            agent.stop()
-            if telegram:
-                await telegram.stop()
-            if heartbeat:
-                heartbeat.stop()
+            for fn in cleanup_sync:
+                fn()
+            for fn in cleanup_async:
+                await fn()
 
     asyncio.run(run())
 

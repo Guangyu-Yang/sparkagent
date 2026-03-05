@@ -65,6 +65,7 @@ uv run ruff format .          # Format code
 - Pydantic v2 for data validation
 - Line length: 100 chars (ruff configured)
 - Lint rules: E, F, I, W (E501 ignored)
+- Conditional complexity: see `.claude/rules/conditional-patterns.md` (guard clauses, dict dispatch, null objects)
 
 ## Design Principles
 

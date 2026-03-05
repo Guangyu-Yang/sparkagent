@@ -18,6 +18,25 @@ from sparkagent.providers.base import LLMProvider
 logger = logging.getLogger(__name__)
 
 
+class NullSkillDesigner:
+    """No-op skill designer used when the memory system is disabled."""
+
+    def record_hard_case(self, case):
+        """No-op."""
+
+    def should_evolve(self):
+        """Return False — never evolve."""
+        return False
+
+    async def evolve_skills(self, provider, model):
+        """Return empty list."""
+        return []
+
+    def check_rollbacks(self):
+        """Return empty list."""
+        return []
+
+
 class SkillDesigner:
     """Evolves the skill bank by analyzing hard cases (failures)."""
 
@@ -55,9 +74,7 @@ class SkillDesigner:
                         case = self._dict_to_hard_case(data)
                         self._hard_cases.append(case)
                     except (json.JSONDecodeError, KeyError):
-                        logger.warning(
-                            "Skipping malformed hard case in %s", self._hard_cases_path
-                        )
+                        logger.warning("Skipping malformed hard case in %s", self._hard_cases_path)
                         continue
         except OSError:
             logger.warning("Failed to read hard cases from %s", self._hard_cases_path)
@@ -132,9 +149,7 @@ class SkillDesigner:
         cases = self._ensure_loaded()
         return len(cases) >= self.hard_case_threshold
 
-    async def evolve_skills(
-        self, provider: LLMProvider, model: str
-    ) -> list[MemorySkill]:
+    async def evolve_skills(self, provider: LLMProvider, model: str) -> list[MemorySkill]:
         """Analyze hard cases and propose/create new or refined skills.
 
         Returns the list of newly created or updated skills.
@@ -168,7 +183,9 @@ class SkillDesigner:
         text = response.content or ""
         proposals = self._parse_proposals(text)
 
-        logger.info("Evolving skills: %d proposal(s) from %d hard case(s)", len(proposals), len(cases))
+        logger.info(
+            "Evolving skills: %d proposal(s) from %d hard case(s)", len(proposals), len(cases)
+        )
 
         new_skills: list[MemorySkill] = []
         for proposal in proposals:

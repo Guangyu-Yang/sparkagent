@@ -11,6 +11,38 @@ from sparkagent.memory.models import MemoryEntry
 logger = logging.getLogger(__name__)
 
 
+class NullMemoryStore:
+    """No-op memory store used when the memory system is disabled."""
+
+    def insert(self, content, tags=None, source_session="", source_skill=""):
+        """Return None — no persistence."""
+        return None
+
+    def update(self, entry_id, content=None, tags=None):
+        """Return None — no persistence."""
+        return None
+
+    def delete(self, entry_id):
+        """Return False — nothing to delete."""
+        return False
+
+    def get(self, entry_id):
+        """Return None — no entries."""
+        return None
+
+    def get_all(self):
+        """Return empty list."""
+        return []
+
+    def retrieve(self, query, max_results=10):
+        """Return empty list."""
+        return []
+
+    def retrieve_for_context(self, query, max_entries=10, max_chars=2000):
+        """Return empty string."""
+        return ""
+
+
 class MemoryStore:
     """Persistent store for memory entries.
 
@@ -191,9 +223,7 @@ class MemoryStore:
 
         return results
 
-    def retrieve_for_context(
-        self, query: str, max_entries: int = 10, max_chars: int = 2000
-    ) -> str:
+    def retrieve_for_context(self, query: str, max_entries: int = 10, max_chars: int = 2000) -> str:
         """Retrieve memories and format as markdown for the system prompt."""
         entries = self.retrieve(query, max_results=max_entries)
         if not entries:
