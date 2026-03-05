@@ -517,6 +517,14 @@ def gateway(
         memory_config=config.memory,
     )
 
+    # Print enabled features
+    if config.memory.enabled:
+        console.print("[green]>[/green] Memory enabled")
+    if config.tools.web_search.api_key:
+        console.print("[green]>[/green] Web search enabled (Brave)")
+    if config.tools.tavily.api_key:
+        console.print("[green]>[/green] Tavily enabled")
+
     # Setup Telegram if enabled
     telegram = None
     if config.channels.telegram.enabled:
