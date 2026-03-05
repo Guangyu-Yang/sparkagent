@@ -72,8 +72,7 @@ _HEARTBEAT_SYSTEM_PROMPT = (
 
 
 class HeartbeatService:
-    """Periodically reads HEARTBEAT.md and uses the LLM to decide whether
-    scheduled tasks should run."""
+    """Periodically read HEARTBEAT.md and decide whether scheduled tasks should run."""
 
     def __init__(
         self,
@@ -84,6 +83,19 @@ class HeartbeatService:
         on_execute: Callable[[str], Coroutine[Any, Any, str]] | None = None,
         on_notify: Callable[[str], Coroutine[Any, Any, None]] | None = None,
     ):
+        """Initialize the heartbeat service.
+
+        Args:
+            provider: LLM provider for evaluating scheduled tasks.
+            model: Model identifier for the LLM call.
+            workspace: Path to the workspace directory containing HEARTBEAT.md.
+            interval_minutes: Minutes between heartbeat ticks.
+            on_execute: Async callback invoked with a task description when
+                the LLM decides a task should run.
+            on_notify: Async callback invoked with the execution result
+                to send notifications.
+
+        """
         self._provider = provider
         self._model = model
         self._workspace = workspace

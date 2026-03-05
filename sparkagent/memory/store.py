@@ -19,6 +19,7 @@ class MemoryStore:
     """
 
     def __init__(self, storage_dir: Path | None = None):
+        """Initialize the memory store."""
         self.storage_dir = storage_dir or (Path.home() / ".sparkagent" / "memory")
         self.storage_dir.mkdir(parents=True, exist_ok=True)
         self._entries_path = self.storage_dir / "entries.jsonl"

@@ -10,8 +10,7 @@ from typing import Any
 
 
 class ContextBuilder:
-    """
-    Builds the context (system prompt + messages) for the agent.
+    """Build the context (system prompt + messages) for the agent.
 
     Assembles workspace files, memory, and conversation history into prompts.
     """
@@ -20,6 +19,7 @@ class ContextBuilder:
     BOOTSTRAP_FILES = ["AGENTS.md", "SOUL.md", "USER.md", "TOOLS.md"]
 
     def __init__(self, workspace: Path, memory_store: Any | None = None):
+        """Initialize with workspace path and optional memory store."""
         self.workspace = workspace
         self._memory_store = memory_store
 
@@ -130,8 +130,7 @@ save these yourself.
         execution_mode: str = "function_calling",
         tool_schemas: list[dict[str, Any]] | None = None,
     ) -> list[dict[str, Any]]:
-        """
-        Build the complete message list for an LLM call.
+        """Build the complete message list for an LLM call.
 
         Args:
             history: Previous conversation messages.
@@ -142,6 +141,7 @@ save these yourself.
 
         Returns:
             List of messages including system prompt.
+
         """
         messages = []
 

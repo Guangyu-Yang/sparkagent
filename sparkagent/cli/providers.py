@@ -88,6 +88,7 @@ def get_provider(key: str) -> ProviderOption | None:
 
     Returns:
         The matching ``ProviderOption``, or ``None`` if no provider has that key.
+
     """
     for provider in PROVIDERS:
         if provider.key == key:

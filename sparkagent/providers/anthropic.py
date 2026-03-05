@@ -17,6 +17,7 @@ def _classify_anthropic_credential(
         A tuple of ``(api_key, auth_token)``.  Exactly one will be non-None.
         OAuth tokens (prefix ``sk-ant-oat``) are routed to ``auth_token``;
         everything else is treated as a standard API key.
+
     """
     if not credential:
         return None, None
@@ -26,8 +27,7 @@ def _classify_anthropic_credential(
 
 
 class AnthropicProvider(LLMProvider):
-    """
-    LLM provider for the Anthropic Messages API.
+    """LLM provider for the Anthropic Messages API.
 
     Uses the official anthropic Python SDK with async support.
     Automatically detects OAuth tokens vs API keys and routes
@@ -61,6 +61,20 @@ class AnthropicProvider(LLMProvider):
         token_type: str | None = None,
         on_token_refresh: Callable[[str, str, str], None] | None = None,
     ):
+        """Initialize the Anthropic provider.
+
+        Args:
+            api_key: Anthropic API key or OAuth access token.
+            api_base: Base URL for the Anthropic API.
+            default_model: Default model identifier.
+            timeout: Request timeout in seconds.
+            refresh_token: OAuth refresh token for automatic renewal.
+            expires_at: ISO 8601 expiry timestamp for the access token.
+            token_type: Credential type (``"oauth"`` or ``None``).
+            on_token_refresh: Callback invoked with ``(access_token,
+                refresh_token, expires_at)`` after a successful token refresh.
+
+        """
         super().__init__(api_key, api_base)
         self.default_model = default_model
         self._base_url = api_base or self.DEFAULT_BASE_URL

@@ -21,6 +21,7 @@ console = Console()
 
 
 def version_callback(value: bool):
+    """Print version and exit when --version is passed."""
     if value:
         console.print(f"SparkAgent v{__version__}")
         raise typer.Exit()

@@ -11,22 +11,31 @@ from sparkagent.agent.tools.base import Tool
 
 class WebSearchTool(Tool):
     """Search the web using Brave Search API."""
-    
+
     BRAVE_API_URL = "https://api.search.brave.com/res/v1/web/search"
-    
+
     def __init__(self, api_key: str | None = None):
+        """Initialize the web search tool.
+
+        Args:
+            api_key: Brave Search API key.
+
+        """
         self.api_key = api_key
-    
+
     @property
     def name(self) -> str:
+        """Return the tool name."""
         return "web_search"
-    
+
     @property
     def description(self) -> str:
+        """Return the tool description."""
         return "Search the web and return results with titles, URLs, and snippets."
-    
+
     @property
     def parameters(self) -> dict[str, Any]:
+        """Return the JSON Schema for tool parameters."""
         return {
             "type": "object",
             "properties": {
@@ -41,23 +50,34 @@ class WebSearchTool(Tool):
             },
             "required": ["query"]
         }
-    
+
     async def execute(self, query: str, count: int = 5, **kwargs: Any) -> str:
+        """Search the web and return formatted results.
+
+        Args:
+            query: Search query string.
+            count: Number of results to return (1-10).
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            Formatted search results, or an error message.
+
+        """
         if not self.api_key:
             return "Error: Brave Search API key not configured"
-        
+
         count = max(1, min(10, count))
-        
+
         headers = {
             "Accept": "application/json",
             "X-Subscription-Token": self.api_key,
         }
-        
+
         params = {
             "q": query,
             "count": count,
         }
-        
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
                 response = await client.get(
@@ -67,21 +87,21 @@ class WebSearchTool(Tool):
                 )
                 response.raise_for_status()
                 data = response.json()
-                
+
                 results = []
                 web_results = data.get("web", {}).get("results", [])
-                
+
                 for i, result in enumerate(web_results[:count], 1):
                     title = result.get("title", "No title")
                     url = result.get("url", "")
                     description = result.get("description", "")
                     results.append(f"{i}. {title}\n   {url}\n   {description}\n")
-                
+
                 if not results:
                     return "No results found."
-                
+
                 return "\n".join(results)
-                
+
             except httpx.HTTPStatusError as e:
                 return f"Search API error: {e.response.status_code}"
             except Exception as e:
@@ -90,20 +110,29 @@ class WebSearchTool(Tool):
 
 class WebFetchTool(Tool):
     """Fetch and extract readable content from a URL."""
-    
+
     def __init__(self, max_chars: int = 20000):
+        """Initialize the web fetch tool.
+
+        Args:
+            max_chars: Maximum characters to return from fetched content.
+
+        """
         self.max_chars = max_chars
-    
+
     @property
     def name(self) -> str:
+        """Return the tool name."""
         return "web_fetch"
-    
+
     @property
     def description(self) -> str:
+        """Return the tool description."""
         return "Fetch a web page and extract its readable text content."
-    
+
     @property
     def parameters(self) -> dict[str, Any]:
+        """Return the JSON Schema for tool parameters."""
         return {
             "type": "object",
             "properties": {
@@ -118,54 +147,65 @@ class WebFetchTool(Tool):
             },
             "required": ["url"]
         }
-    
+
     async def execute(self, url: str, max_chars: int | None = None, **kwargs: Any) -> str:
+        """Fetch a web page and extract its readable text content.
+
+        Args:
+            url: URL to fetch.
+            max_chars: Maximum characters to return.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            The extracted text content, or an error message.
+
+        """
         max_chars = max_chars or self.max_chars
-        
+
         headers = {
             "User-Agent": "Mozilla/5.0 (compatible; SparkAgent/1.0)",
         }
-        
+
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
             try:
                 response = await client.get(url, headers=headers)
                 response.raise_for_status()
-                
+
                 content_type = response.headers.get("content-type", "")
-                
+
                 if "text/html" in content_type:
                     text = self._extract_text_from_html(response.text)
                 else:
                     text = response.text
-                
+
                 if len(text) > max_chars:
                     text = text[:max_chars] + "\n... (truncated)"
-                
+
                 return text
-                
+
             except httpx.HTTPStatusError as e:
                 return f"HTTP error: {e.response.status_code}"
             except Exception as e:
                 return f"Fetch failed: {str(e)}"
-    
+
     def _extract_text_from_html(self, html: str) -> str:
-        """Simple HTML text extraction."""
+        """Extract readable text from raw HTML."""
         # Remove script and style elements
         html = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
         html = re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.DOTALL | re.IGNORECASE)
-        
+
         # Remove HTML tags
         text = re.sub(r'<[^>]+>', ' ', html)
-        
+
         # Decode common HTML entities
         text = text.replace('&nbsp;', ' ')
         text = text.replace('&amp;', '&')
         text = text.replace('&lt;', '<')
         text = text.replace('&gt;', '>')
         text = text.replace('&quot;', '"')
-        
+
         # Clean up whitespace
         text = re.sub(r'\s+', ' ', text)
         text = '\n'.join(line.strip() for line in text.split('\n') if line.strip())
-        
+
         return text.strip()

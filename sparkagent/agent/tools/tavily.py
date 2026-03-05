@@ -13,18 +13,27 @@ class TavilySearchTool(Tool):
     TAVILY_SEARCH_URL = "https://api.tavily.com/search"
 
     def __init__(self, api_key: str | None = None):
+        """Initialize the Tavily search tool.
+
+        Args:
+            api_key: Tavily API key.
+
+        """
         self.api_key = api_key
 
     @property
     def name(self) -> str:
+        """Return the tool name."""
         return "tavily_search"
 
     @property
     def description(self) -> str:
+        """Return the tool description."""
         return "Search the web using Tavily and return results with titles, URLs, and snippets."
 
     @property
     def parameters(self) -> dict[str, Any]:
+        """Return the JSON Schema for tool parameters."""
         return {
             "type": "object",
             "properties": {
@@ -41,6 +50,17 @@ class TavilySearchTool(Tool):
         }
 
     async def execute(self, query: str, max_results: int = 5, **kwargs: Any) -> str:
+        """Search the web using Tavily and return formatted results.
+
+        Args:
+            query: Search query string.
+            max_results: Number of results to return (1-10).
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            Formatted search results, or an error message.
+
+        """
         if not self.api_key:
             return "Error: Tavily API key not configured"
 
@@ -82,18 +102,27 @@ class TavilyFetchTool(Tool):
     TAVILY_EXTRACT_URL = "https://api.tavily.com/extract"
 
     def __init__(self, api_key: str | None = None):
+        """Initialize the Tavily fetch tool.
+
+        Args:
+            api_key: Tavily API key.
+
+        """
         self.api_key = api_key
 
     @property
     def name(self) -> str:
+        """Return the tool name."""
         return "tavily_fetch"
 
     @property
     def description(self) -> str:
+        """Return the tool description."""
         return "Fetch a web page and extract its readable content using Tavily."
 
     @property
     def parameters(self) -> dict[str, Any]:
+        """Return the JSON Schema for tool parameters."""
         return {
             "type": "object",
             "properties": {
@@ -106,6 +135,16 @@ class TavilyFetchTool(Tool):
         }
 
     async def execute(self, url: str, **kwargs: Any) -> str:
+        """Fetch a web page and extract its readable content via Tavily.
+
+        Args:
+            url: URL to fetch and extract content from.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            The extracted page content, or an error message.
+
+        """
         if not self.api_key:
             return "Error: Tavily API key not configured"
 

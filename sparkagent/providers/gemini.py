@@ -11,8 +11,7 @@ from sparkagent.providers.base import LLMProvider, LLMResponse, ToolCall
 
 
 class GeminiProvider(LLMProvider):
-    """
-    LLM provider for Google Gemini models.
+    """LLM provider for Google Gemini models.
 
     Uses the google-genai SDK (synchronous) with asyncio.to_thread for async compat.
     """
@@ -24,6 +23,7 @@ class GeminiProvider(LLMProvider):
         default_model: str = "gemini-2.5-flash",
         timeout: float = 120.0,
     ):
+        """Initialize the Gemini provider."""
         super().__init__(api_key, api_base)
         self.default_model = default_model
         self.timeout = timeout

@@ -150,6 +150,7 @@ class SkillBank:
     """Manages the inventory of memory skills stored as markdown files."""
 
     def __init__(self, skills_dir: Path | None = None):
+        """Initialize the skill bank."""
         self.skills_dir = skills_dir or (Path.home() / ".sparkagent" / "memory" / "skills")
         self.skills_dir.mkdir(parents=True, exist_ok=True)
         self._skills: dict[str, MemorySkill] | None = None

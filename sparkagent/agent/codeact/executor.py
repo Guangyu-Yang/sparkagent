@@ -29,6 +29,7 @@ class CodeActExecutor:
         timeout: int = 30,
         max_output: int = 4000,
     ) -> None:
+        """Initialize with tool registry, timeout, and max output size."""
         self.tools = tools
         self.timeout = timeout
         self.max_output = max_output
