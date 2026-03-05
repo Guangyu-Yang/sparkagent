@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,8 @@ from sparkagent.memory.skill_bank import SkillBank
 from sparkagent.memory.store import MemoryStore
 from sparkagent.providers import LLMProvider
 from sparkagent.session import SessionManager
+
+logger = logging.getLogger(__name__)
 
 
 class AgentLoop:
@@ -113,7 +116,7 @@ class AgentLoop:
     async def run(self) -> None:
         """Run the agent loop, processing messages from the bus."""
         self._running = True
-        print("Agent loop started")
+        logger.info("Agent loop started")
 
         while self._running:
             try:
@@ -129,7 +132,7 @@ class AgentLoop:
                     if response:
                         await self.bus.publish_outbound(response)
                 except Exception as e:
-                    print(f"Error processing message: {e}")
+                    logger.exception("Error processing message")
                     await self.bus.publish_outbound(OutboundMessage(
                         channel=msg.channel,
                         chat_id=msg.chat_id,
@@ -141,7 +144,7 @@ class AgentLoop:
     def stop(self) -> None:
         """Stop the agent loop."""
         self._running = False
-        print("Agent loop stopping")
+        logger.info("Agent loop stopping")
 
     async def _resolve_execution_mode(self, message: str) -> str:
         """Resolve the execution mode, consulting the LLM when set to 'auto'."""
@@ -151,12 +154,12 @@ class AgentLoop:
 
     async def _process_message(self, msg: InboundMessage) -> OutboundMessage | None:
         """Process a single inbound message, dispatching to the active execution mode."""
-        print(f"Processing message from {msg.channel}:{msg.sender_id}")
+        logger.debug("Processing message from %s:%s", msg.channel, msg.sender_id)
 
         session = self.sessions.get_or_create(msg.session_key)
 
         mode = await self._resolve_execution_mode(msg.content)
-        print(f"  Execution mode: {mode}")
+        logger.debug("Execution mode: %s", mode)
 
         if mode == "code_act":
             final_content = await self._process_message_codeact(msg, session)
@@ -176,7 +179,7 @@ class AgentLoop:
             try:
                 await self._process_memory(msg.content, final_content, msg.session_key)
             except Exception as e:
-                print(f"  Memory processing error (non-fatal): {e}")
+                logger.warning("Memory processing error (non-fatal): %s", e)
 
         return OutboundMessage(
             channel=msg.channel,
@@ -226,7 +229,7 @@ class AgentLoop:
                 )
 
                 for tool_call in response.tool_calls:
-                    print(f"  Executing tool: {tool_call.name}")
+                    logger.debug("Executing tool: %s", tool_call.name)
                     result = await self.tools.execute(
                         tool_call.name, tool_call.arguments
                     )
@@ -281,7 +284,7 @@ class AgentLoop:
                 messages.append({"role": "assistant", "content": text})
 
                 code = self._codeact_parser.extract_code(text)
-                print(f"  Executing CodeAct block ({len(code)} chars)")
+                logger.debug("Executing CodeAct block (%d chars)", len(code))
                 observation = executor.execute(code)
 
                 # Feed observation back for the next iteration

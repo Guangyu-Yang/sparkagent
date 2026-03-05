@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Coroutine
 
 from sparkagent.providers.base import LLMProvider
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_HEARTBEAT_CONTENT = """\
 # Heartbeat — Scheduled Tasks
@@ -97,13 +100,13 @@ class HeartbeatService:
         """Long-running coroutine — use with ``asyncio.gather()``."""
         self._running = True
         self._ensure_heartbeat_file()
-        print(f"Heartbeat started (interval={self._interval_s}s)")
+        logger.info("Heartbeat started (interval=%ds)", self._interval_s)
         await self._loop()
 
     def stop(self) -> None:
         """Signal the loop to exit after the current sleep."""
         self._running = False
-        print("Heartbeat stopping")
+        logger.info("Heartbeat stopping")
 
     async def trigger_now(self) -> None:
         """Run a single tick immediately (useful for manual triggers)."""
@@ -120,8 +123,8 @@ class HeartbeatService:
                 break
             try:
                 await self._tick()
-            except Exception as e:
-                print(f"Heartbeat tick error: {e}")
+            except Exception:
+                logger.exception("Heartbeat tick error")
 
     def _ensure_heartbeat_file(self) -> Path:
         """Create HEARTBEAT.md with default template if it doesn't exist."""
@@ -129,7 +132,7 @@ class HeartbeatService:
         if not heartbeat_file.exists():
             self._workspace.mkdir(parents=True, exist_ok=True)
             heartbeat_file.write_text(_DEFAULT_HEARTBEAT_CONTENT)
-            print("Heartbeat: created HEARTBEAT.md")
+            logger.info("Created HEARTBEAT.md")
         return heartbeat_file
 
     async def _tick(self) -> None:
@@ -137,7 +140,7 @@ class HeartbeatService:
 
         content = heartbeat_file.read_text().strip()
         if not content:
-            print("Heartbeat: HEARTBEAT.md is empty, skipping")
+            logger.debug("HEARTBEAT.md is empty, skipping")
             return
 
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -154,7 +157,7 @@ class HeartbeatService:
         )
 
         if not response.has_tool_calls:
-            print("Heartbeat: LLM did not call heartbeat tool, skipping")
+            logger.debug("LLM did not call heartbeat tool, skipping")
             return
 
         tc = response.tool_calls[0]
@@ -164,20 +167,20 @@ class HeartbeatService:
         reason = args.get("reason", "")
 
         if action != "run":
-            print(f"Heartbeat: skip — {reason}")
+            logger.debug("Skip: %s", reason)
             return
 
-        print(f"Heartbeat: run — {task}")
+        logger.info("Run: %s", task)
 
         if self._on_execute:
             try:
                 result = await self._on_execute(task)
             except Exception as e:
-                print(f"Heartbeat execute error: {e}")
+                logger.exception("Execute error")
                 result = f"Error: {e}"
 
             if self._on_notify and result:
                 try:
                     await self._on_notify(result)
-                except Exception as e:
-                    print(f"Heartbeat notify error: {e}")
+                except Exception:
+                    logger.exception("Notify error")

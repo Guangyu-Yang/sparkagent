@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from pathlib import Path
 
 from sparkagent.bus import MessageBus, OutboundMessage
 from sparkagent.channels.base import BaseChannel
 from sparkagent.config import Config
+
+logger = logging.getLogger(__name__)
 
 # Import telegram library (optional dependency)
 try:
@@ -88,11 +91,11 @@ class TelegramChannel(BaseChannel):
     async def start(self) -> None:
         """Start the Telegram bot."""
         if not TELEGRAM_AVAILABLE:
-            print("Error: python-telegram-bot not installed")
+            logger.error("python-telegram-bot not installed")
             return
         
         if not self.telegram_config.token:
-            print("Error: Telegram token not configured")
+            logger.error("Telegram token not configured")
             return
         
         self._running = True
@@ -116,7 +119,7 @@ class TelegramChannel(BaseChannel):
         await self._app.start()
         
         bot_info = await self._app.bot.get_me()
-        print(f"Telegram bot @{bot_info.username} connected")
+        logger.info("Telegram bot @%s connected", bot_info.username)
         
         await self._app.updater.start_polling(
             allowed_updates=["message"],
@@ -145,12 +148,12 @@ class TelegramChannel(BaseChannel):
             chat_id = int(msg.chat_id)
             html = markdown_to_telegram_html(msg.content)
             await self._app.bot.send_message(chat_id=chat_id, text=html, parse_mode="HTML")
-        except Exception as e:
+        except Exception:
             # Fallback to plain text
             try:
                 await self._app.bot.send_message(chat_id=int(msg.chat_id), text=msg.content)
             except Exception:
-                print(f"Failed to send message: {e}")
+                logger.exception("Failed to send message")
     
     async def _on_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /start command."""

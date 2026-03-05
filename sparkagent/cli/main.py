@@ -409,12 +409,17 @@ def login():
 def chat(
     message: str = typer.Option(None, "--message", "-m", help="Message to send"),
     session_id: str = typer.Option("cli:default", "--session", "-s", help="Session ID"),
+    log_level: str = typer.Option(
+        "INFO", "--log-level", "-l", help="Log level (DEBUG, INFO, WARNING, ERROR)"
+    ),
 ):
     """Chat with the agent."""
     from sparkagent.agent import AgentLoop
     from sparkagent.bus import MessageBus
     from sparkagent.config import load_config
+    from sparkagent.logging import configure_logging
 
+    configure_logging(log_level)
     config = load_config()
 
     api_key = config.get_api_key()
@@ -471,13 +476,19 @@ def chat(
 
 
 @app.command()
-def gateway():
+def gateway(
+    log_level: str = typer.Option(
+        "INFO", "--log-level", "-l", help="Log level (DEBUG, INFO, WARNING, ERROR)"
+    ),
+):
     """Start the gateway (for Telegram/WhatsApp)."""
     from sparkagent.agent import AgentLoop
     from sparkagent.bus import MessageBus, OutboundMessage
     from sparkagent.channels import TelegramChannel
     from sparkagent.config import load_config
+    from sparkagent.logging import configure_logging
 
+    configure_logging(log_level)
     config = load_config()
 
     api_key = config.get_api_key()
