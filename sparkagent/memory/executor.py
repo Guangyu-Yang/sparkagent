@@ -29,6 +29,7 @@ async def execute_memory_skills(
 
     Returns:
         List of memory operations to apply.
+
     """
     # Format memories as indexed list
     indexed_memories = _format_indexed_memories(relevant_memories)

@@ -9,17 +9,20 @@ from sparkagent.agent.tools.base import Tool
 
 class ReadFileTool(Tool):
     """Read the contents of a file."""
-    
+
     @property
     def name(self) -> str:
+        """Return the tool name."""
         return "read_file"
-    
+
     @property
     def description(self) -> str:
+        """Return the tool description."""
         return "Read the contents of a file. Returns the file content as text."
-    
+
     @property
     def parameters(self) -> dict[str, Any]:
+        """Return the JSON Schema for tool parameters."""
         return {
             "type": "object",
             "properties": {
@@ -34,27 +37,38 @@ class ReadFileTool(Tool):
             },
             "required": ["path"]
         }
-    
+
     async def execute(self, path: str, max_lines: int | None = None, **kwargs: Any) -> str:
+        """Read file contents and return them as a string.
+
+        Args:
+            path: Path to the file to read.
+            max_lines: Maximum number of lines to read.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            The file contents as text, or an error message.
+
+        """
         try:
             p = Path(path).expanduser()
             if not p.exists():
                 return f"Error: File not found: {path}"
             if not p.is_file():
                 return f"Error: Not a file: {path}"
-            
+
             content = p.read_text(encoding="utf-8", errors="replace")
-            
+
             if max_lines:
                 lines = content.splitlines()[:max_lines]
                 content = "\n".join(lines)
                 if len(lines) == max_lines:
                     content += f"\n... (truncated at {max_lines} lines)"
-            
+
             # Truncate very large files
             if len(content) > 50000:
                 content = content[:50000] + "\n... (truncated at 50KB)"
-            
+
             return content
         except Exception as e:
             return f"Error reading file: {str(e)}"
@@ -62,17 +76,20 @@ class ReadFileTool(Tool):
 
 class WriteFileTool(Tool):
     """Write content to a file."""
-    
+
     @property
     def name(self) -> str:
+        """Return the tool name."""
         return "write_file"
-    
+
     @property
     def description(self) -> str:
+        """Return the tool description."""
         return "Write content to a file. Creates parent directories if needed."
-    
+
     @property
     def parameters(self) -> dict[str, Any]:
+        """Return the JSON Schema for tool parameters."""
         return {
             "type": "object",
             "properties": {
@@ -87,8 +104,19 @@ class WriteFileTool(Tool):
             },
             "required": ["path", "content"]
         }
-    
+
     async def execute(self, path: str, content: str, **kwargs: Any) -> str:
+        """Write content to the specified file path.
+
+        Args:
+            path: Path to the file to write.
+            content: Content to write to the file.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            A success message with byte count, or an error message.
+
+        """
         try:
             p = Path(path).expanduser()
             p.parent.mkdir(parents=True, exist_ok=True)
@@ -100,17 +128,20 @@ class WriteFileTool(Tool):
 
 class ListDirectoryTool(Tool):
     """List contents of a directory."""
-    
+
     @property
     def name(self) -> str:
+        """Return the tool name."""
         return "list_directory"
-    
+
     @property
     def description(self) -> str:
+        """Return the tool description."""
         return "List files and directories in a path."
-    
+
     @property
     def parameters(self) -> dict[str, Any]:
+        """Return the JSON Schema for tool parameters."""
         return {
             "type": "object",
             "properties": {
@@ -125,15 +156,26 @@ class ListDirectoryTool(Tool):
             },
             "required": ["path"]
         }
-    
+
     async def execute(self, path: str, recursive: bool = False, **kwargs: Any) -> str:
+        """List files and directories at the given path.
+
+        Args:
+            path: Directory path to list.
+            recursive: Whether to list recursively.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            A formatted listing of directory contents, or an error message.
+
+        """
         try:
             p = Path(path).expanduser()
             if not p.exists():
                 return f"Error: Path not found: {path}"
             if not p.is_dir():
                 return f"Error: Not a directory: {path}"
-            
+
             entries = []
             if recursive:
                 for item in sorted(p.rglob("*"))[:200]:  # Limit entries
@@ -144,10 +186,10 @@ class ListDirectoryTool(Tool):
                 for item in sorted(p.iterdir()):
                     prefix = "[DIR] " if item.is_dir() else "[FILE]"
                     entries.append(f"{prefix} {item.name}")
-            
+
             if not entries:
                 return "(empty directory)"
-            
+
             return "\n".join(entries)
         except Exception as e:
             return f"Error listing directory: {str(e)}"
@@ -155,17 +197,20 @@ class ListDirectoryTool(Tool):
 
 class EditFileTool(Tool):
     """Edit a file by replacing text."""
-    
+
     @property
     def name(self) -> str:
+        """Return the tool name."""
         return "edit_file"
-    
+
     @property
     def description(self) -> str:
+        """Return the tool description."""
         return "Edit a file by replacing exact text. The old_text must match exactly."
-    
+
     @property
     def parameters(self) -> dict[str, Any]:
+        """Return the JSON Schema for tool parameters."""
         return {
             "type": "object",
             "properties": {
@@ -184,22 +229,34 @@ class EditFileTool(Tool):
             },
             "required": ["path", "old_text", "new_text"]
         }
-    
+
     async def execute(self, path: str, old_text: str, new_text: str, **kwargs: Any) -> str:
+        """Replace exact text in a file with new text.
+
+        Args:
+            path: Path to the file to edit.
+            old_text: Exact text to find and replace.
+            new_text: Text to replace with.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            A success message with replacement count, or an error message.
+
+        """
         try:
             p = Path(path).expanduser()
             if not p.exists():
                 return f"Error: File not found: {path}"
-            
+
             content = p.read_text(encoding="utf-8")
-            
+
             if old_text not in content:
                 return f"Error: old_text not found in file"
-            
+
             count = content.count(old_text)
             new_content = content.replace(old_text, new_text)
             p.write_text(new_content, encoding="utf-8")
-            
+
             return f"Successfully replaced {count} occurrence(s)"
         except Exception as e:
             return f"Error editing file: {str(e)}"

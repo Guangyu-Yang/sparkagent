@@ -27,6 +27,7 @@ class SkillDesigner:
         storage_dir: Path | None = None,
         hard_case_threshold: int = 10,
     ):
+        """Initialize the skill designer."""
         self.skill_bank = skill_bank
         self.storage_dir = storage_dir or (Path.home() / ".sparkagent" / "memory")
         self.storage_dir.mkdir(parents=True, exist_ok=True)

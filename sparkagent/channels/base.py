@@ -8,28 +8,29 @@ from sparkagent.bus import MessageBus, InboundMessage, OutboundMessage
 
 class BaseChannel(ABC):
     """Abstract base class for chat channels."""
-    
+
     name: str = "base"
-    
+
     def __init__(self, bus: MessageBus):
+        """Initialize the channel."""
         self.bus = bus
         self._running = False
-    
+
     @abstractmethod
     async def start(self) -> None:
         """Start the channel."""
         pass
-    
+
     @abstractmethod
     async def stop(self) -> None:
         """Stop the channel."""
         pass
-    
+
     @abstractmethod
     async def send(self, msg: OutboundMessage) -> None:
         """Send a message through this channel."""
         pass
-    
+
     async def _publish_inbound(
         self,
         sender_id: str,
@@ -38,7 +39,7 @@ class BaseChannel(ABC):
         media: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
-        """Helper to publish an inbound message to the bus."""
+        """Publish an inbound message to the bus."""
         msg = InboundMessage(
             channel=self.name,
             sender_id=sender_id,

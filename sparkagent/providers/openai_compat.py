@@ -9,14 +9,13 @@ from sparkagent.providers.base import LLMProvider, LLMResponse, ToolCall
 
 
 class OpenAICompatibleProvider(LLMProvider):
-    """
-    LLM provider for OpenAI-compatible APIs.
-    
+    """LLM provider for OpenAI-compatible APIs.
+
     Works with OpenAI, OpenRouter, local vLLM, and other compatible endpoints.
     """
-    
+
     DEFAULT_BASE_URL = "https://api.openai.com/v1"
-    
+
     def __init__(
         self,
         api_key: str | None = None,
@@ -24,11 +23,12 @@ class OpenAICompatibleProvider(LLMProvider):
         default_model: str = "gpt-4o",
         timeout: float = 120.0,
     ):
+        """Initialize the OpenAI-compatible provider."""
         super().__init__(api_key, api_base)
         self.default_model = default_model
         self.timeout = timeout
         self.base_url = api_base or self.DEFAULT_BASE_URL
-    
+
     async def chat(
         self,
         messages: list[dict[str, Any]],
@@ -51,13 +51,14 @@ class OpenAICompatibleProvider(LLMProvider):
         if tools:
             payload["tools"] = tools
             payload["tool_choice"] = tool_choice if tool_choice is not None else "auto"
-        
+
+
         headers = {
             "Content-Type": "application/json",
         }
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
-        
+
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
                 response = await client.post(
@@ -79,12 +80,12 @@ class OpenAICompatibleProvider(LLMProvider):
                     content=f"Request failed: {str(e)}",
                     finish_reason="error",
                 )
-    
+
     def _parse_response(self, data: dict[str, Any]) -> LLMResponse:
         """Parse the API response into our format."""
         choice = data["choices"][0]
         message = choice["message"]
-        
+
         tool_calls = []
         if "tool_calls" in message and message["tool_calls"]:
             for tc in message["tool_calls"]:
@@ -94,13 +95,13 @@ class OpenAICompatibleProvider(LLMProvider):
                         args = json.loads(args)
                     except json.JSONDecodeError:
                         args = {"raw": args}
-                
+
                 tool_calls.append(ToolCall(
                     id=tc["id"],
                     name=tc["function"]["name"],
                     arguments=args,
                 ))
-        
+
         usage = {}
         if "usage" in data:
             usage = {
@@ -108,14 +109,14 @@ class OpenAICompatibleProvider(LLMProvider):
                 "completion_tokens": data["usage"].get("completion_tokens", 0),
                 "total_tokens": data["usage"].get("total_tokens", 0),
             }
-        
+
         return LLMResponse(
             content=message.get("content"),
             tool_calls=tool_calls,
             finish_reason=choice.get("finish_reason", "stop"),
             usage=usage,
         )
-    
+
     def get_default_model(self) -> str:
         """Get the default model."""
         return self.default_model

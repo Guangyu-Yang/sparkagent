@@ -74,6 +74,7 @@ async def select_execution_mode(
 
     Returns:
         Either "function_calling" or "code_act".
+
     """
     messages = [
         {"role": "system", "content": CLASSIFICATION_PROMPT},

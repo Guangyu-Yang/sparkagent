@@ -36,6 +36,7 @@ class ProviderConfig(BaseModel):
     @field_validator("api_base")
     @classmethod
     def validate_api_base(cls, v: str | None) -> str | None:
+        """Validate that api_base uses an http or https scheme."""
         if v is None:
             return v
         v = v.strip().rstrip("/")

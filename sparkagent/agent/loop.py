@@ -38,9 +38,8 @@ logger = logging.getLogger(__name__)
 
 
 class AgentLoop:
-    """
-    The agent loop is the core processing engine.
-    
+    """Core processing engine for the agent.
+
     It:
     1. Receives messages from the bus
     2. Builds context with history and system prompt
@@ -61,6 +60,7 @@ class AgentLoop:
         execution_mode: str = "function_calling",
         memory_config: MemoryConfig | None = None,
     ):
+        """Initialize the agent loop with bus, provider, and configuration."""
         self.bus = bus
         self.provider = provider
         self.workspace = workspace
@@ -415,15 +415,15 @@ class AgentLoop:
             self._memory_store.delete(op.target_id)
 
     async def process_direct(self, content: str, session_key: str = "cli:direct") -> str:
-        """
-        Process a message directly (for CLI usage).
-        
+        """Process a message directly (for CLI usage).
+
         Args:
             content: The message content.
             session_key: Session identifier.
-        
+
         Returns:
             The agent's response.
+
         """
         msg = InboundMessage(
             channel="cli",

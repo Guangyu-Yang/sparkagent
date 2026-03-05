@@ -49,6 +49,7 @@ class OAuthError(Exception):
     """Raised when an OAuth operation fails."""
 
     def __init__(self, message: str, status_code: int | None = None):
+        """Initialize the OAuth error."""
         self.status_code = status_code
         super().__init__(message)
 
@@ -65,6 +66,7 @@ def generate_pkce_pair() -> tuple[str, str]:
         A tuple of ``(code_verifier, code_challenge)``.
         The verifier is a 43-character URL-safe random string.
         The challenge is ``BASE64URL(SHA256(verifier))`` without padding.
+
     """
     code_verifier = secrets.token_urlsafe(32)  # 43 chars
 
@@ -93,6 +95,7 @@ def build_authorization_url(code_challenge: str, code_verifier: str) -> str:
 
     Returns:
         The complete authorization URL to open in a browser.
+
     """
     params = {
         "code": "true",
@@ -134,6 +137,7 @@ async def exchange_code_for_tokens(
 
     Raises:
         OAuthError: If the token exchange fails.
+
     """
     # The callback returns "code#state" — split them apart.
     parts = code.split("#", 1)
@@ -190,6 +194,7 @@ async def refresh_access_token(refresh_token: str) -> OAuthTokens:
 
     Raises:
         OAuthError: If the refresh fails (e.g. refresh token expired).
+
     """
     payload = {
         "grant_type": "refresh_token",
@@ -236,6 +241,7 @@ def compute_expires_at(expires_in: int) -> str:
 
     Returns:
         An ISO 8601 UTC timestamp string.
+
     """
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
     return expires_at.isoformat()
@@ -251,6 +257,7 @@ def is_token_expired(expires_at: str | None) -> bool:
 
     Returns:
         True if the token is expired or the expiry is unknown.
+
     """
     if not expires_at:
         return True

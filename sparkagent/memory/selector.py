@@ -34,6 +34,7 @@ async def select_skills(
 
     Returns:
         Ordered list of skill IDs, most relevant first.
+
     """
     prompt = SKILL_SELECTION_PROMPT.format(
         existing_memories=existing_memories or "(no memories yet)",

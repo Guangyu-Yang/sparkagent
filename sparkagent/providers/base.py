@@ -8,7 +8,7 @@ from typing import Any
 @dataclass
 class ToolCall:
     """Represents a tool call request from the LLM."""
-    
+
     id: str
     name: str
     arguments: dict[str, Any]
@@ -17,12 +17,12 @@ class ToolCall:
 @dataclass
 class LLMResponse:
     """Response from an LLM provider."""
-    
+
     content: str | None = None
     tool_calls: list[ToolCall] = field(default_factory=list)
     finish_reason: str = "stop"
     usage: dict[str, int] = field(default_factory=dict)
-    
+
     @property
     def has_tool_calls(self) -> bool:
         """Check if response contains tool calls."""
@@ -31,11 +31,12 @@ class LLMResponse:
 
 class LLMProvider(ABC):
     """Abstract base class for LLM providers."""
-    
+
     def __init__(self, api_key: str | None = None, api_base: str | None = None):
+        """Initialize the provider."""
         self.api_key = api_key
         self.api_base = api_base
-    
+
     @abstractmethod
     async def chat(
         self,
@@ -48,7 +49,7 @@ class LLMProvider(ABC):
     ) -> LLMResponse:
         """Send a chat completion request."""
         pass
-    
+
     @abstractmethod
     def get_default_model(self) -> str:
         """Get the default model for this provider."""

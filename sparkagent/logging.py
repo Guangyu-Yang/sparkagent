@@ -17,6 +17,7 @@ class JsonFormatter(logging.Formatter):
     """Emit one JSON object per line (JSONL format)."""
 
     def format(self, record: logging.LogRecord) -> str:
+        """Format a log record as a JSON object."""
         log_entry = {
             "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
             "level": record.levelname,
@@ -56,7 +57,8 @@ def configure_logging(level: str | None = None, log_format: str = "text") -> Non
 
     Args:
         level: Log level name. Precedence: this arg > LOG_LEVEL env var > "INFO".
-        log_format: Console output format — "text" (default) or "json".
+        log_format: Console output format -- "text" (default) or "json".
+
     """
     global _log_listener
 
