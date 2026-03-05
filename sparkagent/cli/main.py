@@ -257,10 +257,7 @@ def onboard():
         else:
             console.print("  [yellow]Skipped (empty key)[/yellow]\n")
     elif web_choice == 3:
-        console.print(
-            "\n  Get a key at: "
-            "[link=https://tavily.com/]https://tavily.com/[/link]\n"
-        )
+        console.print("\n  Get a key at: [link=https://tavily.com/]https://tavily.com/[/link]\n")
         tavily_key = typer.prompt("Tavily API key", hide_input=True)
         if tavily_key.strip():
             config.tools.tavily.api_key = tavily_key.strip()
@@ -412,6 +409,7 @@ def chat(
     log_level: str = typer.Option(
         "INFO", "--log-level", "-l", help="Log level (DEBUG, INFO, WARNING, ERROR)"
     ),
+    log_format: str = typer.Option("text", "--log-format", help="Log format (text or json)"),
 ):
     """Chat with the agent."""
     from sparkagent.agent import AgentLoop
@@ -419,7 +417,7 @@ def chat(
     from sparkagent.config import load_config
     from sparkagent.logging import configure_logging
 
-    configure_logging(log_level)
+    configure_logging(log_level, log_format=log_format)
     config = load_config()
 
     api_key = config.get_api_key()
@@ -480,6 +478,7 @@ def gateway(
     log_level: str = typer.Option(
         "INFO", "--log-level", "-l", help="Log level (DEBUG, INFO, WARNING, ERROR)"
     ),
+    log_format: str = typer.Option("text", "--log-format", help="Log format (text or json)"),
 ):
     """Start the gateway (for Telegram/WhatsApp)."""
     from sparkagent.agent import AgentLoop
@@ -488,7 +487,7 @@ def gateway(
     from sparkagent.config import load_config
     from sparkagent.logging import configure_logging
 
-    configure_logging(log_level)
+    configure_logging(log_level, log_format=log_format)
     config = load_config()
 
     api_key = config.get_api_key()
